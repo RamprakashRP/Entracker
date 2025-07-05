@@ -103,12 +103,12 @@ const MediaDropdown: React.FC<MediaDropdownProps> = ({ options, selectedOption, 
 export default function App() {
     const [form, setForm] = useState(initialForm);
     const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState<{ message: string } | null>(null);
+    const [result, setResult] = useState<{ message: string; details?: any } | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [currentView, setCurrentView] = useState<'add' | 'list'>('add');
     const [allMediaData, setAllMediaData] = useState<FetchedMediaItem[]>([]);
     const [suggestions, setSuggestions] = useState<FetchedMediaItem[]>([]);
-    const [selectedForUpdate, setSelectedForUpdate] = useState<FetchedMediaItem | null>(null);
+    const [selectedForUpdate, setSelectedForUpdate] = useState<FetchedMediaItem | null>(null);  
 
     const fetchAllMediaData = useCallback(async () => {
         try {
@@ -178,8 +178,7 @@ export default function App() {
         setSuggestions([]);
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (isWatched: boolean) => {
         setLoading(true);
         setResult(null);
         setError(null);
@@ -189,10 +188,10 @@ export default function App() {
             setLoading(false);
             return;
         }
-
+        
         let watchedTillForBackend = "";
         if (form.mediaType === "series" || form.mediaType === "anime") {
-            const sNum = parseInt(form.seasonNumber, 10);
+             const sNum = parseInt(form.seasonNumber, 10);
             if (!form.seasonNumber || isNaN(sNum) || sNum <= 0) {
                 setError("Season number must be a positive number.");
                 setLoading(false); return;
@@ -210,10 +209,13 @@ export default function App() {
                 mediaName: form.mediaName,
                 watchedTill: watchedTillForBackend,
                 rowIndex: selectedForUpdate ? selectedForUpdate.row_index : undefined,
+                watched: isWatched ? 'True' : 'False', // Pass the new watched status
             };
-            await (selectedForUpdate ? axios.put : axios.post)("http://localhost:5000/add-media", requestData);
 
-            setResult({ message: selectedForUpdate ? "Update Successful!" : "Media Added Successfully!" });
+            const method = selectedForUpdate ? 'put' : 'post';
+            const response = await axios[method]("http://localhost:5000/add-media", requestData);
+
+            setResult({ message: response.data.message, details: response.data.data });
             setForm(initialForm);
             setSelectedForUpdate(null);
             setSuggestions([]);
@@ -292,9 +294,16 @@ export default function App() {
                                         )}
                                     </AnimatePresence>
                                 </div>
-                                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button">
-                                    {loading ? "Processing..." : (selectedForUpdate ? "Update Tracker" : "Add to Tracker")}
-                                </motion.button>
+                                <div className="submit-button-group">
+                                    <motion.button type="submit" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button">
+                                        {loading ? "Processing..." : (selectedForUpdate ? "Update Tracker" : "Add to Tracker")}
+                                    </motion.button>
+                                    {!selectedForUpdate && ( // Only show Watchlist button for new entries
+                                        <motion.button type="button" onClick={() => handleSubmit(false)} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button watchlist">
+                                            {loading ? "Processing..." : "Add to Watchlist"}
+                                        </motion.button>
+                                    )}
+                                </div>
                             </form>
                         </motion.div>
                     ) : (
@@ -305,10 +314,16 @@ export default function App() {
                 </AnimatePresence>
 
                 <AnimatePresence>
-                    {error && <motion.div className="message-box error" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><p>{error}</p></motion.div>}
+                    {error && <motion.div className="message-box error"><p>{error}</p></motion.div>}
                     {result?.message && (
-                        <motion.div className="message-box success" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                        <motion.div className="message-box success">
                             <h2>{result.message}</h2>
+                            {result.details && (
+                                <div className="result-details">
+                                    <p><strong>Name:</strong> {result.details.series_name || result.details.movies_name || result.details.anime_name}</p>
+                                    <p><strong>Status:</strong> {result.details.watched === 'True' ? 'Tracked' : 'In Watchlist'}</p>
+                                </div>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

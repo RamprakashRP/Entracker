@@ -25,7 +25,7 @@ body {
 
 /* Logo Styling */
 .app-logo {
-    position: absolute;
+    position: fixed;
     top: 20px;
     left: 20px;
     width: 45px;
@@ -551,3 +551,54 @@ body {
     .custom-dropdown-wrapper, .input-with-suggestions-container { flex-basis: 100%; }
     .list-controls { flex-direction: column; }
 } 
+
+/* --- NEW STYLES for Franchise Feature --- */
+.franchise-link {
+    cursor: pointer;
+    color: #a188e3;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: rgba(161, 136, 227, 0.5);
+}
+
+.franchise-link:hover {
+    color: #c7b9f3;
+}
+
+.submit-button-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+/* Make the watchlist button a different color */
+.submit-button.watchlist {
+    background: linear-gradient(90deg, #1e90ff, #00bfff); /* Blue gradient */
+    box-shadow: 0 6px 20px rgba(30, 144, 255, 0.4);
+}
+
+.submit-button.watchlist:hover:not(:disabled) {
+    box-shadow: 0 8px 25px rgba(30, 144, 255, 0.6);
+}
+
+/* Watched status text colors */
+.watched-true {
+    color: #39ff14; /* Neon Green */
+}
+
+.watched-false {
+    color: #ff3131; /* Neon Red */
+}
+
+/* Add this to the end of index.css */
+
+.result-details {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.result-details p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}

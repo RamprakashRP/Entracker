@@ -12,355 +12,281 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+/* server/index.ts */
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
-const google_auth_library_1 = require("google-auth-library");
+const dotenv_1 = __importDefault(require("dotenv"));
 const googleapis_1 = require("googleapis");
 const openai_1 = __importDefault(require("openai"));
-const dotenv_1 = __importDefault(require("dotenv"));
+// Load environment variables from .env file
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const port = process.env.PORT || 5000;
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
-// Root route
-app.get('/', (req, res) => {
-    res.send(`
-    <h1>Entracker Backend is Running</h1>
-    <p>Welcome to the Entracker API server.</p>
-    <ul>
-      <li>POST <code>/add-media</code> to add a new entry.</li>
-    <li>GET  <code>/get-media/:mediaType</code> to fetch all media of a type.</li>
-    <li>PUT  <code>/update-media</code> to update an existing entry.</li>
-    </ul>
-  `);
-});
-// Google Sheets setup
-const auth = new google_auth_library_1.GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    keyFile: 'credentials.json'
-});
-// Initialize Google Sheets client
-const sheets = googleapis_1.google.sheets('v4');
-// Perplexity setup
+// Initialize variables correctly
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
+const PORT = process.env.PORT || 5000;
+// Correctly initialize the AI client
 const perplexity = new openai_1.default({
     apiKey: process.env.PERPLEXITY_API_KEY,
-    baseURL: 'https://api.perplexity.ai'
+    baseURL: 'https://api.perplexity.ai',
 });
-// Sheet configuration for different media types
+// --- CHANGE 1: Update SHEET_CONFIG to use 'franchise' column ---
 const SHEET_CONFIG = {
     series: {
-        range: "Series!A:G",
-        columns: ["Series Name", "Series Status", "Season Status", "Watched Till", "Next Season", "Expected On", "Update"]
+        sheetName: 'Series',
+        range: 'Series!A:H', // Adjusted range for the new column
+        columns: ['series_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched']
     },
     movie: {
-        range: "Movies!A:F",
-        columns: ["Movies Name", "Franchise Status", "Watched Till", "Next Part", "Expected On", "Update"]
+        sheetName: 'Movies',
+        range: 'Movies!A:G', // Adjusted range for the new column
+        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched']
     },
     anime: {
-        range: "Anime!A:G",
-        columns: ["Anime Name", "Series Status", "Season Status", "Watched Till", "Next Season", "Expected On", "Update"]
+        sheetName: 'Anime',
+        range: 'Anime!A:H', // Adjusted range for the new column
+        columns: ['anime_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched']
     },
     anime_movie: {
-        range: "Anime Movies!A:F",
-        columns: ["Movies Name", "Franchise Status", "Watched Till", "Next Part", "Expected On", "Update"]
+        sheetName: 'Anime Movies',
+        range: 'Anime Movies!A:G', // Adjusted range for the new column
+        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched']
     }
 };
-// getPromptForMediaType for more precise AI output instructions for Expected On AND Watched Till for movies
-function getPromptForMediaType(mediaType, mediaName) {
-    const basePrompt = `Extract details in JSON format. Current date: ${new Date().toISOString().split('T')[0]}. For 'next_season' or 'next_part', explicitly return 'No' if the series/movie is definitively concluded/finished, otherwise 'Yes'.`;
-    const expectedOnFormat = `(Format: "Month YYYY" or "N/A" if no announcement, e.g., "September 2025" or "N/A").`;
-    switch (mediaType) {
-        case 'series':
-            return [
-                { role: 'system', content: `${basePrompt} with keys: series_status (e.g., 'On Going', 'Completed'), season_status (e.g., 'On Going', 'Completed'), next_season (Yes/No), expected_on ${expectedOnFormat}` },
-                { role: 'user', content: `TV series details for "${mediaName}"` }
-            ];
-        case 'movie':
-            return [
-                { role: 'system', content: `${basePrompt} with keys: franchise_status (e.g., 'On Going', 'Completed'), next_part (Yes/No), expected_on ${expectedOnFormat}, watched_till (Format: 'Standalone', 'Part X of Y', 'Completed Franchise', 'N/A').` },
-                { role: 'user', content: `Movie details for "${mediaName}"` }
-            ];
-        case 'anime':
-            return [
-                { role: 'system', content: `${basePrompt} with keys: series_status (e.g., 'On Going', 'Completed'), season_status (e.g., 'On Going', 'Completed'), next_season (Yes/No), expected_on ${expectedOnFormat}` },
-                { role: 'user', content: `Anime series details for "${mediaName}"` }
-            ];
-        case 'anime_movie':
-            return [
-                { role: 'system', content: `${basePrompt} with keys: franchise_status (e.g., 'On Going', 'Completed'), next_part (Yes/No), expected_on ${expectedOnFormat}, watched_till (Format: 'Standalone', 'Part X of Y', 'Completed Franchise', 'N/A').` },
-                { role: 'user', content: `Anime movie details for "${mediaName}"` }
-            ];
-        default:
-            return [];
-    }
-}
-// formatExpectedOn to handle cases where AI might still give verbose answers
-function formatExpectedOn(dateStr) {
-    if (!dateStr || dateStr === 'N/A' || dateStr.toLowerCase().includes('no plans') || dateStr.toLowerCase().includes('no announcements')) {
-        return 'N/A';
-    }
-    // Attempt to extract 'Month YYYY' if a full sentence is provided as a fallback
-    const sentenceMonthYearMatch = dateStr.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s(\d{4})/i);
-    if (sentenceMonthYearMatch) {
-        return `${sentenceMonthYearMatch[1]} ${sentenceMonthYearMatch[2]}`;
-    }
-    // Try to parse ISO date (e.g., '2025-09-01')
-    const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (isoMatch) {
-        const date = new Date(dateStr);
-        return date.toLocaleString('default', { month: 'long', year: 'numeric' });
-    }
-    // Try to match 'Month YYYY' directly
-    const monthYearMatch = dateStr.match(/^([A-Za-z]+) (\d{4})$/);
-    if (monthYearMatch) {
-        return dateStr;
-    }
-    // If the AI gives a short, unparseable string or still a longer descriptive text not captured,
-    // default to N/A. The prompt is key, this is a final safeguard.
-    if (dateStr.length > 30) { // Reduced from 50 to 30 for stricter filtering
-        return 'N/A';
-    }
-    return dateStr; // Fallback for short, unexpected but potentially valid strings
-}
-// transformResponse to handle auto-determined watched_till for movies
-function transformResponse(response, watchedTill, // This watchedTill is from frontend (S01 E01 or empty for movies)
-mediaType) {
-    // Common transformation
-    const transformCommon = () => {
-        // Series/Season Status
-        const statusText = (response.series_status || '').toLowerCase();
-        const series_status = statusText.includes('complete') ||
-            statusText.includes('finish') ? 'Completed' : 'On Going';
-        // Season Status
-        const seasonText = (response.season_status || '').toLowerCase();
-        const season_status = seasonText.includes('final') ||
-            seasonText.includes('complete') ||
-            seasonText.includes('ended') ? 'Completed' : 'On Going';
-        // Next Season/Part: This logic relies on the prompt telling the AI to return 'No' or 'Yes' directly
-        const nextText = (response.next_season || response.next_part || '').toLowerCase();
-        const next_value = nextText === 'no' ? 'No' : 'Yes'; // Simplified based on new prompt guidance
-        // Expected On - primary formatting happens via AI prompt, this is a fallback for unexpected output
-        const expected_on = formatExpectedOn(response.expected_on);
-        return {
-            series_status,
-            season_status,
-            next_value,
-            expected_on
-        };
+const getSheetsClient = () => __awaiter(void 0, void 0, void 0, function* () {
+    const auth = new googleapis_1.google.auth.GoogleAuth({
+        keyFile: 'credentials.json',
+        scopes: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+    const client = yield auth.getClient();
+    return googleapis_1.google.sheets({ version: 'v4', auth: client });
+});
+// --- CHANGE 2: Update AI prompt to ask for franchise NAME ---
+const getPromptForMediaType = (mediaType, mediaName) => {
+    const commonSystemMessage = {
+        role: 'system',
+        content: `You are a media information assistant. Your response MUST strictly be a JSON object with specific keys and formats. Do not include any text, notes, or explanations outside of the final JSON object.`,
     };
-    // Movie-specific transformation
-    const transformMovie = () => {
-        const franchiseText = (response.franchise_status || '').toLowerCase();
-        const franchise_status = franchiseText.includes('complete') ? 'Completed' : 'On Going';
-        const nextPartText = (response.next_part || '').toLowerCase();
-        const next_part = nextPartText === 'no' ? 'No' : 'Yes'; // Simplified based on new prompt guidance
-        // NEW: Auto-determined watched_till for movies/anime_movies
-        let movie_watched_till = (response.watched_till || '').trim();
-        if (!movie_watched_till || movie_watched_till.toLowerCase() === 'n/a' || movie_watched_till.length > 50) {
-            // If AI gives empty, N/A, or very long text, try to infer from franchise status
-            if (franchise_status === 'Completed') {
-                movie_watched_till = 'Completed Franchise';
+    let userMessageContent = `Get details for the ${mediaType}: "${mediaName}". `;
+    if (mediaType === 'series' || mediaType === 'anime') {
+        userMessageContent += `JSON keys: "series_status" (string, "On Going" or "Completed"), "next_season" (string, "Yes" or "No"), "expected_on" (string, "Month Year" or "N/A" or "Available" if it is already released).`;
+    }
+    else { // movie or anime_movie
+        // We now ask the AI to return "Available" if the release date is in the past.
+        userMessageContent += `JSON keys: "franchise" (string, the specific name of the franchise like "Harry Potter", or "Standalone" if it is not part of a franchise), "next_part" (string, "Yes" or "No"), "expected_on" (string, "Month Year" if the release date is in the future, or "Available" if it has already been released).`;
+    }
+    return [
+        commonSystemMessage,
+        { role: 'user', content: userMessageContent },
+    ];
+};
+// --- CHANGE 3: Simplify transformResponse function ---
+const transformResponse = (response, watchedTill, mediaType, watched) => {
+    const data = Object.assign({}, response);
+    for (const key of ['series_status']) {
+        if (typeof data[key] === 'string') {
+            const status = data[key].toLowerCase();
+            if (status.includes('complete') || status.includes('finish') || status.includes('final') || status.includes('ended')) {
+                data[key] = 'Completed';
             }
-            else if (next_part === 'No') {
-                // If franchise not completed, but no next part, implies standalone or final
-                movie_watched_till = 'Standalone/Final Part';
-            }
-            else if (movie_watched_till.length === 0) { // If still empty, default to "Watched"
-                movie_watched_till = 'Watched'; // Default if no specific info
+            else {
+                data[key] = 'On Going';
             }
         }
-        return {
-            franchise_status,
-            next_part,
-            expected_on: formatExpectedOn(response.expected_on),
-            movie_watched_till // Include the new auto-determined value
-        };
-    };
-    const common = transformCommon();
-    const movie = transformMovie();
-    const timestamp = new Date().toISOString();
-    switch (mediaType) {
-        case 'series':
-        case 'anime':
-            return {
-                series_status: common.series_status,
-                season_status: common.season_status,
-                watched_till: watchedTill, // From frontend (SXX EYY)
-                next_season: common.next_value,
-                expected_on: common.expected_on,
-                update: timestamp
-            };
-        case 'movie':
-        case 'anime_movie':
-            return {
-                franchise_status: movie.franchise_status,
-                watched_till: movie.movie_watched_till, // Use auto-determined value
-                next_part: movie.next_part,
-                expected_on: movie.expected_on,
-                update: timestamp
-            };
-        default:
-            return {};
     }
-}
-// Handler function for adding or updating media
+    if (mediaType === "series" || mediaType === "anime") {
+        data.watched_till = watchedTill;
+    }
+    else if (mediaType === "movie" || mediaType === "anime_movie") {
+        data.watched_till = "Not Watched";
+    }
+    data.update = new Date().toISOString();
+    data.watched = watched; // Add the watched status to the data
+    return data;
+};
+// This function remains the same, with our previous bug fixes included.
 const addMediaHandler = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { mediaName, mediaType, watchedTill, rowIndex } = req.body; // NEW: rowIndex included for updates
-    if (!SHEET_CONFIG[mediaType]) {
-        return res.status(400).json({ error: 'Invalid media type' });
+    var _a, _b;
+    // Add 'watched' to the destructured request body
+    const { mediaType, mediaName, watchedTill, rowIndex, watched } = req.body;
+    if (!mediaType || !mediaName || watched === undefined) {
+        return res.status(400).json({ error: 'mediaType, mediaName, and watched status are required.' });
     }
     try {
+        const sheets = yield getSheetsClient();
         const prompt = getPromptForMediaType(mediaType, mediaName);
-        if (prompt.length === 0) {
-            throw new Error('Invalid media type specified for AI prompt');
-        }
-        const chatCompletion = yield perplexity.chat.completions.create({
+        const aiResponse = yield perplexity.chat.completions.create({
             model: 'sonar-pro',
             messages: prompt,
+            stream: false,
         });
-        const content = chatCompletion.choices[0].message.content;
+        const content = (_b = (_a = aiResponse.choices[0]) === null || _a === void 0 ? void 0 : _a.message) === null || _b === void 0 ? void 0 : _b.content;
         if (!content) {
-            throw new Error('No content in AI response');
+            throw new Error('No content received from AI.');
         }
-        console.log("Raw Perplexity content:", content);
-        let details;
+        const jsonRegex = /```json\s*([\s\S]*?)\s*```|({[\s\S]*})/;
+        const match = content.match(jsonRegex);
+        if (!match || (!match[1] && !match[2])) {
+            console.error('Problematic AI content logged:', content);
+            throw new Error('AI did not return a valid JSON code block or object.');
+        }
+        const jsonString = match[1] || match[2];
+        let mediaData;
         try {
-            details = JSON.parse(content);
+            mediaData = JSON.parse(jsonString);
         }
-        catch (parseError) {
-            console.error('Failed to parse JSON from AI response:', parseError);
-            console.error('Problematic AI content:', content);
-            throw new SyntaxError('AI did not return valid JSON. Problematic content logged.');
+        catch (e) {
+            console.error('Failed to parse JSON from AI response:', e);
+            console.error('Problematic AI content logged:', jsonString);
+            throw new Error('AI did not return valid JSON. Problematic content logged.');
         }
-        const transformed = transformResponse(details, watchedTill, mediaType);
-        let row;
-        const config = SHEET_CONFIG[mediaType];
-        switch (mediaType) {
-            case 'series':
-            case 'anime':
-                row = [
-                    mediaName,
-                    transformed.series_status,
-                    transformed.season_status,
-                    transformed.watched_till,
-                    transformed.next_season,
-                    transformed.expected_on,
-                    transformed.update
-                ];
-                break;
-            case 'movie':
-            case 'anime_movie':
-                row = [
-                    mediaName,
-                    transformed.franchise_status,
-                    transformed.watched_till,
-                    transformed.next_part,
-                    transformed.expected_on,
-                    transformed.update
-                ];
-                break;
-            default:
-                throw new Error('Unhandled media type for row construction');
+        // Pass the 'watched' status to the transform function
+        const transformedData = transformResponse(mediaData, watchedTill, mediaType, watched);
+        if (mediaType === 'series' || mediaType === 'anime') {
+            transformedData[`${mediaType}_name`] = mediaName;
         }
-        if (rowIndex) { // If rowIndex is provided, it's an update operation
-            console.log(`Attempting to update row ${rowIndex} in Google Sheet:`, row);
+        else if (mediaType === 'movie' || mediaType === 'anime_movie') {
+            transformedData['movies_name'] = mediaName;
+        }
+        const sheetConfig = SHEET_CONFIG[mediaType];
+        if (!sheetConfig) {
+            throw new Error(`Invalid mediaType: ${mediaType}`);
+        }
+        const values = sheetConfig.columns.map(col => transformedData[col] || '');
+        if (rowIndex !== undefined && rowIndex > 0) {
             yield sheets.spreadsheets.values.update({
-                auth,
-                spreadsheetId: process.env.SPREADSHEET_ID,
-                range: `${config.range.split('!')[0]}!A${rowIndex}`, // e.g., "Series!A10"
+                spreadsheetId: SPREADSHEET_ID,
+                range: `${sheetConfig.sheetName}!A${rowIndex}`,
                 valueInputOption: 'USER_ENTERED',
-                requestBody: { values: [row] }
+                requestBody: { values: [values] },
             });
-            console.log(`Google Sheet update successful for row ${rowIndex}.`);
+            res.status(200).json({ message: 'Media updated successfully' });
         }
-        else { // Otherwise, it's an append operation
-            console.log("Attempting to append row to Google Sheet:", row);
+        else {
             yield sheets.spreadsheets.values.append({
-                auth,
-                spreadsheetId: process.env.SPREADSHEET_ID,
-                range: config.range,
+                spreadsheetId: SPREADSHEET_ID,
+                range: sheetConfig.range,
                 valueInputOption: 'USER_ENTERED',
-                requestBody: { values: [row] }
+                requestBody: { values: [values] },
             });
-            console.log("Google Sheet append successful.");
+            res.status(201).json({ message: 'Media added successfully' });
         }
-        res.json({ success: true, data: transformed });
     }
     catch (error) {
         console.error('Error in addMediaHandler:', error);
-        if (error.response && error.response.data) {
-            console.error('Error response data (e.g., from Google API or Perplexity):', error.response.data);
-        }
-        else if (error.message) {
-            console.error('Error message:', error.message);
-        }
-        if (error instanceof SyntaxError && error.message.includes('JSON')) {
-            return res.status(500).json({ error: 'Failed to parse AI response. It might not be valid JSON. Please try again or provide a different media name.' });
-        }
-        else if (error.message.includes('No content in AI response')) {
-            return res.status(500).json({ error: 'AI could not retrieve content for the media. Try a different name or media type.' });
-        }
-        else if (error.code === 401 || error.code === 403 || (error.response && error.response.status === 403)) {
-            return res.status(500).json({ error: 'Google Sheets API permission denied. Check credentials.json and service account access to spreadsheet. Details in backend logs.' });
-        }
-        else if (error.message.includes('spreadsheetId') || error.message.includes('range')) {
-            return res.status(500).json({ error: 'Google Sheets configuration error (ID or Range). Check backend logs.' });
-        }
-        res.status(500).json({ error: 'An unexpected internal server error occurred. Check backend logs for details.' });
+        res.status(500).json({ error: error.message || 'An internal server error occurred.' });
     }
 });
-// NEW: GET endpoint to fetch all media data for a given type
 app.get('/get-media/:mediaType', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { mediaType } = req.params;
-    if (!SHEET_CONFIG[mediaType]) {
-        return res.status(400).json({ error: 'Invalid media type' });
-    }
     const config = SHEET_CONFIG[mediaType];
+    if (!config) {
+        return res.status(400).json({ error: 'Invalid media type provided.' });
+    }
     try {
+        const sheets = yield getSheetsClient();
         const response = yield sheets.spreadsheets.values.get({
-            auth,
-            spreadsheetId: process.env.SPREADSHEET_ID,
+            spreadsheetId: SPREADSHEET_ID,
             range: config.range,
         });
         const rows = response.data.values;
-        if (!rows || rows.length === 0) {
-            return res.json({ success: true, data: [] });
-        }
-        // Assuming first row is headers
-        const headers = rows[0];
-        const mediaData = rows.slice(1).map((row, index) => {
-            let item = {};
-            // Create an object with header names as keys
-            headers.forEach((header, colIndex) => {
-                item[header.replace(/\s/g, '_').toLowerCase()] = row[colIndex];
+        if (rows && rows.length > 1) {
+            const header = rows[0];
+            const data = rows.slice(1).map((row, index) => {
+                const rowData = { row_index: index + 2 }; // +2 because sheets are 1-indexed and we have a header
+                header.forEach((key, i) => {
+                    rowData[key.toLowerCase().replace(/ /g, '_')] = row[i];
+                });
+                return rowData;
             });
-            item.row_index = index + 2; // +2 because sheet is 1-indexed and we skipped header row
-            return item;
-        });
-        res.json({ success: true, data: mediaData });
+            res.status(200).json({ data });
+        }
+        else {
+            res.status(200).json({ data: [] }); // No data found
+        }
     }
     catch (error) {
-        console.error(`Error fetching media list for ${mediaType}:`, error);
-        res.status(500).json({ error: 'Failed to fetch media list. Check backend logs.' });
+        console.error('Error fetching media list:', error);
+        res.status(500).json({ error: 'Failed to fetch data from Google Sheets.' });
     }
 }));
-// Route registration for POST (Add)
-app.post('/add-media', (req, res) => {
-    addMediaHandler(req, res).catch(error => {
-        console.error('Unhandled error caught by outer POST route handler:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    });
+// Endpoints
+app.post('/add-media', addMediaHandler);
+app.put('/add-media', addMediaHandler);
+// --- CHANGE 4: Add NEW endpoint to get a list of unique franchises ---
+app.get('/api/franchises/:mediaType', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { mediaType } = req.params;
+    const config = SHEET_CONFIG[mediaType];
+    if (mediaType !== 'movie' && mediaType !== 'anime_movie') {
+        return res.status(400).json({ error: 'This endpoint is only for movies and anime movies.' });
+    }
+    try {
+        const sheets = yield getSheetsClient();
+        const response = yield sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: config.range,
+        });
+        const rows = response.data.values;
+        if (rows && rows.length > 1) {
+            const header = rows[0];
+            const franchiseIndex = header.indexOf('Franchise'); // Find the 'Franchise' column
+            if (franchiseIndex === -1) {
+                return res.status(500).json({ error: "'Franchise' column not found in sheet." });
+            }
+            const franchises = rows.slice(1).map(row => row[franchiseIndex]);
+            // Get unique names, filtering out "Standalone" and any empty/falsy values
+            const uniqueFranchises = [...new Set(franchises.filter(f => f && f.toLowerCase() !== 'standalone'))];
+            res.status(200).json({ data: uniqueFranchises });
+        }
+        else {
+            res.status(200).json({ data: [] });
+        }
+    }
+    catch (error) {
+        console.error('Error fetching franchises:', error);
+        res.status(500).json({ error: 'Failed to fetch data from Google Sheets.' });
+    }
+}));
+// --- CHANGE 5: Add NEW endpoint to get all movies within a specific franchise ---
+app.get('/api/franchise/:mediaType/:name', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { mediaType, name } = req.params;
+    const config = SHEET_CONFIG[mediaType];
+    if (!config || (mediaType !== 'movie' && mediaType !== 'anime_movie')) {
+        return res.status(400).json({ error: 'Invalid media type for franchises.' });
+    }
+    try {
+        const sheets = yield getSheetsClient();
+        const response = yield sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: config.range,
+        });
+        const rows = response.data.values;
+        if (rows && rows.length > 1) {
+            const header = rows[0];
+            const franchiseIndex = header.indexOf('Franchise');
+            if (franchiseIndex === -1) {
+                return res.status(500).json({ error: "'Franchise' column not found." });
+            }
+            const filteredMovies = rows.slice(1).map((row, index) => {
+                // Create a JSON object for each movie
+                const rowData = { row_index: index + 2 };
+                header.forEach((key, i) => {
+                    rowData[key.toLowerCase().replace(/ /g, '_')] = row[i];
+                });
+                return rowData;
+            }).filter(movie => movie.franchise === name); // Filter by the franchise name
+            res.status(200).json({ data: filteredMovies });
+        }
+        else {
+            res.status(200).json({ data: [] });
+        }
+    }
+    catch (error) {
+        console.error(`Error fetching movies for franchise ${name}:`, error);
+        res.status(500).json({ error: 'Failed to fetch data from Google Sheets.' });
+    }
+}));
+app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
 });
-// NEW: Route registration for PUT (Update)
-app.put('/update-media', (req, res) => {
-    addMediaHandler(req, res).catch(error => {
-        console.error('Unhandled error caught by outer PUT route handler:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    });
-});
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-});
-// Export app for testing
-exports.default = app;
