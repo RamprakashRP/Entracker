@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Secret files
+.env
+credentials.json
+
+# Node.js dependencies
+node_modules/
+
+# TypeScript compilation output
+dist/
+

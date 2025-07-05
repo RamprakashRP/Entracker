@@ -1,20 +1,18 @@
 /* client/src/MediaListView.tsx */
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { EditModal } from './EditModal'; // Import the new modal component
 
-// Media types for the list view filters, matching backend SHEET_CONFIG keys
 type ListMediaType = "series" | "movie" | "anime" | "anime_movie";
 
-// Map for display labels
 const listViewLabels: Record<ListMediaType, string> = {
-  series: "TV Series",
-  movie: "Movie",
-  anime: "Anime Series",
-  anime_movie: "Anime Movie",
+    series: "TV Series",
+    movie: "Movie",
+    anime: "Anime Series",
+    anime_movie: "Anime Movie",
 };
 
-// Define a type for fetched media items
 interface FetchedMediaItem {
     series_name?: string;
     movies_name?: string;
@@ -22,141 +20,183 @@ interface FetchedMediaItem {
     row_index: number;
     series_status?: string;
     season_status?: string;
+    franchise_status?: string;
     watched_till?: string;
     next_season?: string;
     next_part?: string;
     expected_on?: string;
     update?: string;
-    media_type_key: ListMediaType; // To identify original type from backend
-    [key: string]: any; // For any other properties
+    media_type_key: ListMediaType;
+    [key: string]: any;
 }
 
-
 const MediaListView: React.FC = () => {
-  const [selectedListType, setSelectedListType] = useState<ListMediaType>('series'); // Default to series list
-  const [mediaList, setMediaList] = useState<FetchedMediaItem[]>([]); // State to hold fetched data
-  const [loadingList, setLoadingList] = useState(false);
-  const [listError, setListError] = useState<string | null>(null);
+    const [selectedListType, setSelectedListType] = useState<ListMediaType>('series');
+    const [mediaList, setMediaList] = useState<FetchedMediaItem[]>([]);
+    const [loadingList, setLoadingList] = useState(false);
+    const [listError, setListError] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [searchSuggestions, setSearchSuggestions] = useState<FetchedMediaItem[]>([]);
+    const searchContainerRef = useRef<HTMLDivElement>(null);
+    
+    const [editingItem, setEditingItem] = useState<FetchedMediaItem | null>(null);
 
-  // Function to fetch data
-  const fetchMediaList = async (mediaType: ListMediaType) => {
-    setLoadingList(true);
-    setListError(null);
-    setMediaList([]); // Clear previous list
-    try {
-      const response = await axios.get(`http://localhost:5000/get-media/${mediaType}`);
-      // Add media_type_key to each item for consistent display
-      const typedData = response.data.data.map((item: any) => ({
-          ...item,
-          media_type_key: mediaType 
-      }));
-      setMediaList(typedData);
-      console.log(`Fetched list for ${mediaType}:`, typedData);
-    } catch (err: any) {
-      setListError(err.response?.data?.error || "Failed to load list. Please try again.");
-      console.error(`Error fetching list for ${mediaType}:`, err);
-    } finally {
-      setLoadingList(false);
-    }
-  };
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+                setSearchSuggestions([]);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
-  // Trigger fetch when selected type changes
-  useEffect(() => {
-    fetchMediaList(selectedListType);
-  }, [selectedListType]);
+    const fetchMediaList = async (mediaType: ListMediaType) => {
+        setLoadingList(true);
+        setListError(null);
+        setMediaList([]);
+        setSearchTerm("");
+        try {
+            const response = await axios.get(`http://localhost:5000/get-media/${mediaType}`);
+            const typedData = (response.data.data || []).map((item: any) => ({ ...item, media_type_key: mediaType }));
+            setMediaList(typedData);
+        } catch (err: any) {
+            setListError(err.response?.data?.error || "Failed to load list.");
+        } finally {
+            setLoadingList(false);
+        }
+    };
 
+    useEffect(() => {
+        fetchMediaList(selectedListType);
+    }, [selectedListType]);
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="media-list-view"
-    >
-      <h2 className="list-view-title">Your Tracked Media</h2>
-      
-      <div className="list-filter-buttons">
-        {Object.entries(listViewLabels).map(([key, label]) => (
-          <button
-            key={key}
-            className={`list-filter-button ${selectedListType === key ? 'active' : ''}`}
-            onClick={() => setSelectedListType(key as ListMediaType)}
-            disabled={loadingList}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setSearchTerm(value);
+        if (value.length > 0 && mediaList.length > 0) {
+            const filtered = mediaList.filter(item => {
+                const name = item.series_name || item.movies_name || item.anime_name || '';
+                return name.toLowerCase().includes(value.toLowerCase());
+            });
+            setSearchSuggestions(filtered);
+        } else {
+            setSearchSuggestions([]);
+        }
+    };
+    
+    const handleSuggestionClick = (item: FetchedMediaItem) => {
+        const itemName = item.series_name || item.movies_name || item.anime_name || '';
+        setSearchTerm(itemName);
+        setSearchSuggestions([]);
+    };
 
-      <div className="media-list-content"> {/* Changed from placeholder to content */}
-        {loadingList && <p className="loading-message">Loading {listViewLabels[selectedListType]}...</p>}
-        {listError && <p className="list-error-message">{listError}</p>}
-        
-        {!loadingList && !listError && mediaList.length === 0 && (
-          <p className="no-data-message">No {listViewLabels[selectedListType]} found. Add some!</p>
-        )}
+    const filteredTableData = useMemo(() => {
+        if (!searchTerm) return mediaList;
+        return mediaList.filter(item => {
+            const name = item.series_name || item.movies_name || item.anime_name || '';
+            return name.toLowerCase().includes(searchTerm.toLowerCase());
+        });
+    }, [mediaList, searchTerm]);
+    
+    const headers = selectedListType === 'series' || selectedListType === 'anime'
+        ? ["Name", "Series Status", "Watched Till", "Next Season", "Updated", "Actions"]
+        : ["Name", "Franchise Status", "Watched Till", "Next Part", "Updated", "Actions"];
 
-        {/* --- Render Table Here --- */}
-        {!loadingList && !listError && mediaList.length > 0 && (
-          <div className="media-table-container">
-            <table>
-              <thead>
-                <tr>
-                  {/* Dynamically render headers based on selectedListType or a common set */}
-                  {selectedListType === 'series' || selectedListType === 'anime' ? (
-                    <>
-                      <th>Name</th>
-                      <th>Series Status</th>
-                      <th>Season Status</th>
-                      <th>Watched Till</th>
-                      <th>Next Season</th>
-                      <th>Expected On</th>
-                      <th>Updated</th>
-                    </>
-                  ) : (
-                    <>
-                      <th>Name</th>
-                      <th>Franchise Status</th>
-                      <th>Watched Till</th>
-                      <th>Next Part</th>
-                      <th>Expected On</th>
-                      <th>Updated</th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {mediaList.map((item) => (
-                  <tr key={item.row_index}>
-                    {selectedListType === 'series' || selectedListType === 'anime' ? (
-                      <>
-                        <td>{item.series_name || item.anime_name}</td>
-                        <td>{item.series_status}</td>
-                        <td>{item.season_status}</td>
-                        <td>{item.watched_till}</td>
-                        <td>{item.next_season}</td>
-                        <td>{item.expected_on}</td>
-                        <td>{item.update ? new Date(item.update).toLocaleDateString() : 'N/A'}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td>{item.movies_name}</td>
-                        <td>{item.franchise_status}</td>
-                        <td>{item.watched_till}</td>
-                        <td>{item.next_part}</td>
-                        <td>{item.expected_on}</td>
-                        <td>{item.update ? new Date(item.update).toLocaleDateString() : 'N/A'}</td>
-                      </>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
+    return (
+        <>
+            <motion.div className="media-list-view-container" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+                <div className="list-controls">
+                    <div className="list-filter-container">
+                        {Object.entries(listViewLabels).map(([key, label]) => (
+                            <button key={key} className={`list-filter-button ${selectedListType === key ? 'active' : ''}`} onClick={() => setSelectedListType(key as ListMediaType)} disabled={loadingList}>
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="search-bar-container" ref={searchContainerRef}>
+                        <input
+                            type="text"
+                            placeholder={`Search in ${listViewLabels[selectedListType]}...`}
+                            className="search-input"
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                            disabled={loadingList || mediaList.length === 0}
+                        />
+                        <svg className="search-icon" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        <AnimatePresence>
+                            {searchSuggestions.length > 0 && (
+                                <motion.ul className="search-suggestions-list" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                                    {searchSuggestions.slice(0, 5).map(item => (
+                                        <li key={item.row_index} onClick={() => handleSuggestionClick(item)}>
+                                            {item.series_name || item.movies_name || item.anime_name}
+                                        </li>
+                                    ))}
+                                </motion.ul>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </div>
+
+                <div className="table-container">
+                    <AnimatePresence mode="wait">
+                        {loadingList ? (
+                            <motion.div key="loader" className="loading-state">Loading...</motion.div>
+                        ) : listError ? (
+                            <motion.div key="error" className="error-state">{listError}</motion.div>
+                        ) : (
+                            <table className="media-table">
+                                <thead>
+                                    <tr>{headers.map(h => <th key={h}>{h}</th>)}</tr>
+                                </thead>
+                                <tbody>
+                                    {filteredTableData.map((item) => (
+                                        <motion.tr key={item.row_index} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                            {selectedListType === 'series' || selectedListType === 'anime' ? (
+                                                <>
+                                                    <td>{item.series_name || item.anime_name}</td>
+                                                    <td>{item.series_status || 'N/A'}</td>
+                                                    <td>{item.watched_till || 'N/A'}</td>
+                                                    <td>{item.next_season || 'N/A'}</td>
+                                                    <td>{item.update ? new Date(item.update).toLocaleDateString() : 'N/A'}</td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td>{item.movies_name}</td>
+                                                    <td>{item.franchise_status || 'N/A'}</td>
+                                                    <td>{item.watched_till || 'N/A'}</td>
+                                                    <td>{item.next_part || 'N/A'}</td>
+                                                    <td>{item.update ? new Date(item.update).toLocaleDateString() : 'N/A'}</td>
+                                                </>
+                                            )}
+                                            <td>
+                                                <button className="edit-button" onClick={() => setEditingItem(item)}>
+                                                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z" /></svg>
+                                                </button>
+                                            </td>
+                                        </motion.tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </AnimatePresence>
+                </div>
+            </motion.div>
+            
+            <AnimatePresence>
+                {editingItem && (
+                    <EditModal 
+                        item={editingItem} 
+                        onClose={() => setEditingItem(null)} 
+                        onUpdate={() => {
+                            setEditingItem(null);
+                            fetchMediaList(selectedListType); // Refresh list after successful update
+                        }}
+                    />
+                )}
+            </AnimatePresence>
+        </>
+    );
 };
 
 export default MediaListView;
