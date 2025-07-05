@@ -1,2 +1,1 @@
-server/credentials.json
-server/.env.env
+server/credentials.json.env
