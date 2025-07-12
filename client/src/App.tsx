@@ -54,6 +54,41 @@ interface MediaDropdownProps {
 const MediaDropdown: React.FC<MediaDropdownProps> = ({ options, selectedOption, onSelect, placeholder }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const headerRef = useRef<HTMLDivElement>(null); // Ref for the header to attach the wheel listener
+
+    // This useEffect handles the new scroll-on-hover feature
+    useEffect(() => {
+        const headerElement = headerRef.current;
+
+        const handleWheel = (event: WheelEvent) => {
+            if (!isOpen) { // Only scroll when the dropdown is closed to prevent confusion
+                event.preventDefault(); // Stop the page from scrolling
+
+                const currentIndex = options.findIndex(([value]) => value === selectedOption);
+                const isScrollingDown = event.deltaY > 0;
+                let nextIndex = currentIndex;
+
+                if (isScrollingDown) {
+                    nextIndex = currentIndex + 1 < options.length ? currentIndex + 1 : 0;
+                } else {
+                    nextIndex = currentIndex - 1 >= 0 ? currentIndex - 1 : options.length - 1;
+                }
+
+                onSelect(options[nextIndex][0] as MediaType);
+            }
+        };
+
+        if (headerElement) {
+            headerElement.addEventListener('wheel', handleWheel);
+        }
+
+        return () => {
+            if (headerElement) {
+                headerElement.removeEventListener('wheel', handleWheel);
+            }
+        };
+    }, [isOpen, options, selectedOption, onSelect]);
+
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -74,7 +109,7 @@ const MediaDropdown: React.FC<MediaDropdownProps> = ({ options, selectedOption, 
 
     return (
         <div className="custom-dropdown-wrapper" ref={dropdownRef}>
-            <div className="custom-dropdown-header" onClick={() => setIsOpen(!isOpen)} tabIndex={0} onKeyDown={(e) => {
+            <div ref={headerRef} className="custom-dropdown-header" onClick={() => setIsOpen(!isOpen)} tabIndex={0} onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
                     setIsOpen(!isOpen);

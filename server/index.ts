@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { google, Auth } from 'googleapis';
 import OpenAI from 'openai';
+import axios from 'axios';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -22,27 +23,26 @@ const perplexity = new OpenAI({
     baseURL: 'https://api.perplexity.ai',
 });
 
-// --- CHANGE 1: Update SHEET_CONFIG to use 'franchise' column ---
 const SHEET_CONFIG: { [key: string]: { sheetName: string; range: string; columns: string[] } } = {
     series: {
         sheetName: 'Series',
-        range: 'Series!A:H', // Adjusted range for the new column
-        columns: ['series_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched']
+        range: 'Series!A:I', // Adjusted range
+        columns: ['series_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched', 'release_date']
     },
     movie: {
         sheetName: 'Movies',
-        range: 'Movies!A:G', // Adjusted range for the new column
-        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched']
+        range: 'Movies!A:H', // Adjusted range
+        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched', 'release_date']
     },
     anime: {
         sheetName: 'Anime',
-        range: 'Anime!A:H', // Adjusted range for the new column
-        columns: ['anime_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched']
+        range: 'Anime!A:I', // Adjusted range
+        columns: ['anime_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched', 'release_date']
     },
     anime_movie: {
         sheetName: 'Anime Movies',
-        range: 'Anime Movies!A:G', // Adjusted range for the new column
-        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched']
+        range: 'Anime Movies!A:H', // Adjusted range
+        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched', 'release_date']
     }
 };
 
@@ -63,12 +63,12 @@ const getPromptForMediaType = (mediaType: string, mediaName: string) => {
     };
 
     let userMessageContent = `Get details for the ${mediaType}: "${mediaName}". `;
+    const commonKeys = `"expected_on" (string, "Month Year" or "Available"), "release_date" (string, the release date in YYYY-MM-DD format).`;
 
     if (mediaType === 'series' || mediaType === 'anime') {
-        userMessageContent += `JSON keys: "series_status" (string, "On Going" or "Completed"), "next_season" (string, "Yes" or "No"), "expected_on" (string, "Month Year" or "N/A" or "Available" if it is already released).`;
+        userMessageContent += `JSON keys: "series_status" (string, "On Going" or "Completed"), "next_season" (string, "Yes" or "No"), ${commonKeys}`;
     } else { // movie or anime_movie
-        // We now ask the AI to return "Available" if the release date is in the past.
-        userMessageContent += `JSON keys: "franchise" (string, the specific name of the franchise like "Harry Potter", or "Standalone" if it is not part of a franchise), "next_part" (string, "Yes" or "No"), "expected_on" (string, "Month Year" if the release date is in the future, or "Available" if it has already been released).`;
+        userMessageContent += `JSON keys: "franchise" (string, the specific franchise name or "Standalone"), "next_part" (string, "Yes" or "No"), ${commonKeys}`;
     }
 
     return [
@@ -116,7 +116,7 @@ const addMediaHandler = async (req: Request, res: Response) => {
         const prompt = getPromptForMediaType(mediaType, mediaName);
 
         const aiResponse = await perplexity.chat.completions.create({
-            model: 'llama-3-sonar-large-32k-online',
+            model: 'sonar-pro',
             messages: prompt,
             stream: false,
         });
@@ -302,6 +302,51 @@ app.get('/api/franchise/:mediaType/:name', async (req: Request, res: Response) =
     }
 });
 
+// --- NEW Endpoint to get rich media details from TMDB ---
+app.get('/api/details/:mediaType/:name', async (req: Request, res: Response) => {
+    const { mediaType, name } = req.params;
+    const tmdbApiKey = process.env.TMDB_API_KEY;
+
+    if (!tmdbApiKey) {
+        return res.status(500).json({ error: 'TMDB API key is not configured on the server.' });
+    }
+
+    // Determine the TMDB search path based on our mediaType
+    const searchPath = (mediaType === 'series' || mediaType === 'anime') ? 'tv' : 'movie';
+
+    try {
+        // 1. Search for the media to get its TMDB ID
+        const searchUrl = `https://api.themoviedb.org/3/search/${searchPath}?api_key=${tmdbApiKey}&query=${encodeURIComponent(name)}`;
+        const searchResponse = await axios.get(searchUrl);
+        const item = searchResponse.data.results[0];
+
+        if (!item) {
+            return res.status(404).json({ error: 'Media not found on TMDB.' });
+        }
+
+        // 2. Use the ID to get detailed info, including watch providers
+        const detailsUrl = `https://api.themoviedb.org/3/${searchPath}/${item.id}?api_key=${tmdbApiKey}&append_to_response=watch/providers`;
+        const detailsResponse = await axios.get(detailsUrl);
+        const details = detailsResponse.data;
+
+        // 3. Format the data into a clean object for our frontend
+        const formattedData = {
+            name: details.name || details.title,
+            overview: details.overview,
+            poster_path: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : null,
+            vote_average: details.vote_average,
+            genres: details.genres.map((g: any) => g.name),
+            // Get US streaming providers, fallback to others if not available
+            providers: details['watch/providers']?.results?.US?.flatrate || details['watch/providers']?.results?.IN?.flatrate || [],
+        };
+
+        res.status(200).json({ data: formattedData });
+
+    } catch (error) {
+        console.error('Error fetching from TMDB:', error);
+        res.status(500).json({ error: 'Failed to fetch details from TMDB.' });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);

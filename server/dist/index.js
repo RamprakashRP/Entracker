@@ -18,6 +18,7 @@ const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const googleapis_1 = require("googleapis");
 const openai_1 = __importDefault(require("openai"));
+const axios_1 = __importDefault(require("axios"));
 // Load environment variables from .env file
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -31,27 +32,26 @@ const perplexity = new openai_1.default({
     apiKey: process.env.PERPLEXITY_API_KEY,
     baseURL: 'https://api.perplexity.ai',
 });
-// --- CHANGE 1: Update SHEET_CONFIG to use 'franchise' column ---
 const SHEET_CONFIG = {
     series: {
         sheetName: 'Series',
-        range: 'Series!A:H', // Adjusted range for the new column
-        columns: ['series_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched']
+        range: 'Series!A:I', // Adjusted range
+        columns: ['series_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched', 'release_date']
     },
     movie: {
         sheetName: 'Movies',
-        range: 'Movies!A:G', // Adjusted range for the new column
-        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched']
+        range: 'Movies!A:H', // Adjusted range
+        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched', 'release_date']
     },
     anime: {
         sheetName: 'Anime',
-        range: 'Anime!A:H', // Adjusted range for the new column
-        columns: ['anime_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched']
+        range: 'Anime!A:I', // Adjusted range
+        columns: ['anime_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched', 'release_date']
     },
     anime_movie: {
         sheetName: 'Anime Movies',
-        range: 'Anime Movies!A:G', // Adjusted range for the new column
-        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched']
+        range: 'Anime Movies!A:H', // Adjusted range
+        columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched', 'release_date']
     }
 };
 const getSheetsClient = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -69,12 +69,12 @@ const getPromptForMediaType = (mediaType, mediaName) => {
         content: `You are a media information assistant. Your response MUST strictly be a JSON object with specific keys and formats. Do not include any text, notes, or explanations outside of the final JSON object.`,
     };
     let userMessageContent = `Get details for the ${mediaType}: "${mediaName}". `;
+    const commonKeys = `"expected_on" (string, "Month Year" or "Available"), "release_date" (string, the release date in YYYY-MM-DD format).`;
     if (mediaType === 'series' || mediaType === 'anime') {
-        userMessageContent += `JSON keys: "series_status" (string, "On Going" or "Completed"), "next_season" (string, "Yes" or "No"), "expected_on" (string, "Month Year" or "N/A" or "Available" if it is already released).`;
+        userMessageContent += `JSON keys: "series_status" (string, "On Going" or "Completed"), "next_season" (string, "Yes" or "No"), ${commonKeys}`;
     }
     else { // movie or anime_movie
-        // We now ask the AI to return "Available" if the release date is in the past.
-        userMessageContent += `JSON keys: "franchise" (string, the specific name of the franchise like "Harry Potter", or "Standalone" if it is not part of a franchise), "next_part" (string, "Yes" or "No"), "expected_on" (string, "Month Year" if the release date is in the future, or "Available" if it has already been released).`;
+        userMessageContent += `JSON keys: "franchise" (string, the specific franchise name or "Standalone"), "next_part" (string, "Yes" or "No"), ${commonKeys}`;
     }
     return [
         commonSystemMessage,
@@ -108,7 +108,6 @@ const transformResponse = (response, watchedTill, mediaType, watched) => {
 // This function remains the same, with our previous bug fixes included.
 const addMediaHandler = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    // Add 'watched' to the destructured request body
     const { mediaType, mediaName, watchedTill, rowIndex, watched } = req.body;
     if (!mediaType || !mediaName || watched === undefined) {
         return res.status(400).json({ error: 'mediaType, mediaName, and watched status are required.' });
@@ -141,7 +140,6 @@ const addMediaHandler = (req, res) => __awaiter(void 0, void 0, void 0, function
             console.error('Problematic AI content logged:', jsonString);
             throw new Error('AI did not return valid JSON. Problematic content logged.');
         }
-        // Pass the 'watched' status to the transform function
         const transformedData = transformResponse(mediaData, watchedTill, mediaType, watched);
         if (mediaType === 'series' || mediaType === 'anime') {
             transformedData[`${mediaType}_name`] = mediaName;
@@ -161,7 +159,8 @@ const addMediaHandler = (req, res) => __awaiter(void 0, void 0, void 0, function
                 valueInputOption: 'USER_ENTERED',
                 requestBody: { values: [values] },
             });
-            res.status(200).json({ message: 'Media updated successfully' });
+            // FIX: Return the full data object on success
+            res.status(200).json({ message: 'Media updated successfully', data: transformedData });
         }
         else {
             yield sheets.spreadsheets.values.append({
@@ -170,7 +169,8 @@ const addMediaHandler = (req, res) => __awaiter(void 0, void 0, void 0, function
                 valueInputOption: 'USER_ENTERED',
                 requestBody: { values: [values] },
             });
-            res.status(201).json({ message: 'Media added successfully' });
+            // FIX: Return the full data object on success
+            res.status(201).json({ message: 'Media added successfully', data: transformedData });
         }
     }
     catch (error) {
@@ -285,6 +285,45 @@ app.get('/api/franchise/:mediaType/:name', (req, res) => __awaiter(void 0, void 
     catch (error) {
         console.error(`Error fetching movies for franchise ${name}:`, error);
         res.status(500).json({ error: 'Failed to fetch data from Google Sheets.' });
+    }
+}));
+// --- NEW Endpoint to get rich media details from TMDB ---
+app.get('/api/details/:mediaType/:name', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d, _e, _f;
+    const { mediaType, name } = req.params;
+    const tmdbApiKey = process.env.TMDB_API_KEY;
+    if (!tmdbApiKey) {
+        return res.status(500).json({ error: 'TMDB API key is not configured on the server.' });
+    }
+    // Determine the TMDB search path based on our mediaType
+    const searchPath = (mediaType === 'series' || mediaType === 'anime') ? 'tv' : 'movie';
+    try {
+        // 1. Search for the media to get its TMDB ID
+        const searchUrl = `https://api.themoviedb.org/3/search/${searchPath}?api_key=${tmdbApiKey}&query=${encodeURIComponent(name)}`;
+        const searchResponse = yield axios_1.default.get(searchUrl);
+        const item = searchResponse.data.results[0];
+        if (!item) {
+            return res.status(404).json({ error: 'Media not found on TMDB.' });
+        }
+        // 2. Use the ID to get detailed info, including watch providers
+        const detailsUrl = `https://api.themoviedb.org/3/${searchPath}/${item.id}?api_key=${tmdbApiKey}&append_to_response=watch/providers`;
+        const detailsResponse = yield axios_1.default.get(detailsUrl);
+        const details = detailsResponse.data;
+        // 3. Format the data into a clean object for our frontend
+        const formattedData = {
+            name: details.name || details.title,
+            overview: details.overview,
+            poster_path: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : null,
+            vote_average: details.vote_average,
+            genres: details.genres.map((g) => g.name),
+            // Get US streaming providers, fallback to others if not available
+            providers: ((_c = (_b = (_a = details['watch/providers']) === null || _a === void 0 ? void 0 : _a.results) === null || _b === void 0 ? void 0 : _b.US) === null || _c === void 0 ? void 0 : _c.flatrate) || ((_f = (_e = (_d = details['watch/providers']) === null || _d === void 0 ? void 0 : _d.results) === null || _e === void 0 ? void 0 : _e.IN) === null || _f === void 0 ? void 0 : _f.flatrate) || [],
+        };
+        res.status(200).json({ data: formattedData });
+    }
+    catch (error) {
+        console.error('Error fetching from TMDB:', error);
+        res.status(500).json({ error: 'Failed to fetch details from TMDB.' });
     }
 }));
 app.listen(PORT, () => {

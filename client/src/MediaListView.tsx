@@ -1,8 +1,9 @@
 /* client/src/MediaListView.tsx */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react'; // Import useRef
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { FranchiseModal } from './FranchiseModal'; // We still need our modal
+import { FranchiseModal } from './FranchiseModal';
+import { MediaDetailsModal } from './MediaDetailsModal';
 
 type ListMediaType = "series" | "movie" | "anime" | "anime_movie";
 
@@ -24,10 +25,25 @@ const MediaListView: React.FC = () => {
     const [loadingList, setLoadingList] = useState(false);
     const [listError, setListError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [detailsItem, setDetailsItem] = useState<MediaItem | null>(null);
+    
+    // --- CHANGE 2a: Add state and refs for search suggestions ---
+    const [searchSuggestions, setSearchSuggestions] = useState<MediaItem[]>([]);
+    const searchContainerRef = useRef<HTMLDivElement>(null);
     
     const [selectedFranchise, setSelectedFranchise] = useState<string | null>(null);
 
-    // Reverted to a single fetch function for simplicity
+    // --- Add useEffect to handle clicks outside the search suggestions ---
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+                setSearchSuggestions([]);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
     const fetchMediaList = async (mediaType: ListMediaType) => {
         setLoadingList(true);
         setListError(null);
@@ -46,8 +62,29 @@ const MediaListView: React.FC = () => {
     useEffect(() => {
         fetchMediaList(selectedListType);
     }, [selectedListType]);
+    
+    // --- CHANGE 2b: Add logic to handle search and suggestion filtering ---
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setSearchTerm(value);
 
-    // This filters our single list based on the search term
+        if (value.length > 0 && mediaList.length > 0) {
+            const nameKey = selectedListType.includes('movie') ? 'movies_name' : (selectedListType === 'series' ? 'series_name' : 'anime_name');
+            const filtered = mediaList.filter(item => 
+                item[nameKey]?.toLowerCase().includes(value.toLowerCase())
+            );
+            setSearchSuggestions(filtered.slice(0, 5)); // Show top 5 suggestions
+        } else {
+            setSearchSuggestions([]);
+        }
+    };
+    
+    const handleSuggestionClick = (item: MediaItem) => {
+        const nameKey = selectedListType.includes('movie') ? 'movies_name' : (selectedListType === 'series' ? 'series_name' : 'anime_name');
+        setSearchTerm(item[nameKey] || '');
+        setSearchSuggestions([]);
+    };
+
     const filteredTableData = useMemo(() => {
         if (!searchTerm) return mediaList;
         return mediaList.filter(item => {
@@ -57,13 +94,11 @@ const MediaListView: React.FC = () => {
     }, [mediaList, searchTerm]);
 
     const handleFranchiseClick = (franchiseName: string) => {
-        // Only open the modal if it's a real franchise, not "Standalone"
         if (franchiseName && franchiseName.toLowerCase() !== 'standalone') {
             setSelectedFranchise(franchiseName);
         }
     };
 
-    // Define table headers based on the selected media type
     const headers = useMemo(() => {
         if (selectedListType === 'movie' || selectedListType === 'anime_movie') {
             return ["Name", "Franchise", "Watched Till", "Next Part", "Expected On", "Updated"];
@@ -82,16 +117,31 @@ const MediaListView: React.FC = () => {
                             </button>
                         ))}
                     </div>
-                    <div className="search-bar-container">
+                     {/* --- CHANGE 2c: Wrap search input in container with the ref --- */}
+                    <div className="search-bar-container" ref={searchContainerRef}>
                         <input
                             type="text"
                             placeholder={`Search in ${listViewLabels[selectedListType]}...`}
                             className="search-input"
                             value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
+                            onChange={handleSearchChange}
                             disabled={loadingList || mediaList.length === 0}
+                            autoComplete="off"
                         />
                         <svg className="search-icon" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        
+                        {/* --- Render the search suggestions list --- */}
+                        <AnimatePresence>
+                            {searchSuggestions.length > 0 && (
+                                <motion.ul initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="suggestions-list">
+                                    {searchSuggestions.map((item) => (
+                                        <li key={item.row_index} onClick={() => handleSuggestionClick(item)}>
+                                            {item.series_name || item.movies_name || item.anime_name}
+                                        </li>
+                                    ))}
+                                </motion.ul>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
 
@@ -111,8 +161,7 @@ const MediaListView: React.FC = () => {
                                         <motion.tr key={item.row_index} layout>
                                             {selectedListType === 'series' || selectedListType === 'anime' ? (
                                                 <>
-                                                    {/* FIX: Make the check case-insensitive */}
-                                                    <td className={item.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}>
+                                                    <td className={`name-link ${item.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}`} onClick={() => setDetailsItem(item)}>
                                                         {item.series_name || item.anime_name}
                                                     </td>
                                                     <td>{item.series_status || 'N/A'}</td>
@@ -123,8 +172,8 @@ const MediaListView: React.FC = () => {
                                                 </>
                                             ) : (
                                                 <>
-                                                    {/* FIX: Make the check case-insensitive */}
-                                                    <td className={item.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}>
+                                                     {/* --- CHANGE 1a: Add title attribute for hover tooltip --- */}
+                                                    <td className={`name-link ${item.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}`} onClick={() => setDetailsItem(item)}>
                                                         {item.movies_name}
                                                     </td>
                                                     <td
@@ -153,6 +202,14 @@ const MediaListView: React.FC = () => {
                     franchiseName={selectedFranchise}
                     mediaType={selectedListType as 'movie' | 'anime_movie'}
                     onClose={() => setSelectedFranchise(null)}
+                />
+            )}
+
+            {detailsItem && (
+                <MediaDetailsModal
+                    mediaName={detailsItem.series_name || detailsItem.movies_name || detailsItem.anime_name}
+                    mediaType={selectedListType}
+                    onClose={() => setDetailsItem(null)}
                 />
             )}
         </>

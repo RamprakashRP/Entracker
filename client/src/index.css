@@ -375,6 +375,10 @@ body {
   pointer-events: none;
 }
 
+.search-bar-container .suggestions-list {
+  z-index: 101; /* Higher than the table's sticky header */
+}
+
 /* --- Table & Edit Button --- */
 .table-container {
   width: 100%;
@@ -385,10 +389,37 @@ body {
   background: rgba(0,0,0,0.2);
 }
 
+.table-container::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #8a2be2, #ff1493);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, #9b4de2, #ff33a1);
+  background-clip: content-box;
+}
+
+.table-container::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .media-table {
-  width: 100%;
-  border-collapse: collapse;
-  color: #fff;
+    width: 100%;
+    border-collapse: collapse;
+    color: #fff;
+    table-layout: fixed; 
 }
 
 .media-table th, .media-table td {
@@ -405,6 +436,22 @@ body {
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+/* Give the first column a bit more space */
+.media-table th:first-child,
+.media-table td:first-child {
+    width: 20%; /* Adjust percentage as needed */
+}
+
+.media-table td {
+    padding: 1rem 1.2rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    vertical-align: middle;
+    /* Allow text to wrap naturally and break long words if necessary */
+    white-space: normal;
+    word-wrap: break-word; 
 }
 
 .edit-button {
@@ -601,4 +648,99 @@ body {
 .result-details p {
   margin: 0.25rem 0;
   font-size: 0.9rem;
+}
+
+.name-link {
+    cursor: pointer;
+    font-weight: 500;
+}
+.name-link:hover {
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Details Modal Styles */
+.details-modal-content {
+    width: 100%;
+    max-width: 650px;
+}
+
+.details-header {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.details-poster {
+    width: 150px;
+    height: auto;
+    border-radius: 12px;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.details-header-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.details-header-info h3 {
+    margin-top: 0;
+    font-size: 1.8rem;
+}
+
+.details-rating {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #ffc107;
+    margin-bottom: 0.75rem;
+}
+
+.details-genres {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.genre-tag {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.3rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+}
+
+.details-overview {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    max-height: 150px;
+    overflow-y: auto;
+    padding-right: 10px; /* For scrollbar spacing */
+}
+
+.details-providers {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.details-providers h4 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+}
+
+.provider-logos {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+}
+
+.provider-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.9);
+    padding: 2px;
 }

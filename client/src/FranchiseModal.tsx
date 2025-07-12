@@ -27,12 +27,20 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
       setError(null);
       try {
         const response = await axios.get(`http://localhost:5000/api/franchise/${mediaType}/${franchiseName}`);
+        
+        // Sort movies by the new release_date field
         const sortedData = (response.data.data || []).sort((a: MovieItem, b: MovieItem) => {
-            const dateA = a.expected_on && a.expected_on !== 'N/A' ? new Date(a.expected_on) : null;
-            const dateB = b.expected_on && b.expected_on !== 'N/A' ? new Date(b.expected_on) : null;
-            if (dateA && dateB) return dateA.getTime() - dateB.getTime();
-            return a.movies_name.localeCompare(b.movies_name);
+            // Create date objects, fallback to a very old date if invalid/missing
+            const dateA = a.release_date ? new Date(a.release_date) : new Date(0);
+            const dateB = b.release_date ? new Date(b.release_date) : new Date(0);
+
+            // Handle invalid dates gracefully
+            if (isNaN(dateA.getTime())) return 1;
+            if (isNaN(dateB.getTime())) return -1;
+            
+            return dateA.getTime() - dateB.getTime();
         });
+
         setMovies(sortedData);
       } catch (err) {
         setError('Failed to load movies for this franchise.');
