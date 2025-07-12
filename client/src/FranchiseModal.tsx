@@ -3,10 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
-interface MovieItem {
+// The 'export' keyword here is the fix.
+export interface FranchiseMovieItem {
   row_index: number;
   movies_name: string;
-  watched_till: string;
+  watched: string;
+  release_date: string;
   [key: string]: any;
 }
 
@@ -14,10 +16,11 @@ interface FranchiseModalProps {
   franchiseName: string;
   mediaType: 'movie' | 'anime_movie';
   onClose: () => void;
+  onMovieSelect: (movie: FranchiseMovieItem) => void;
 }
 
-export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, mediaType, onClose }) => {
-  const [movies, setMovies] = useState<MovieItem[]>([]);
+export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, mediaType, onClose, onMovieSelect }) => {
+  const [movies, setMovies] = useState<FranchiseMovieItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,16 +31,11 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
       try {
         const response = await axios.get(`http://localhost:5000/api/franchise/${mediaType}/${franchiseName}`);
         
-        // Sort movies by the new release_date field
-        const sortedData = (response.data.data || []).sort((a: MovieItem, b: MovieItem) => {
-            // Create date objects, fallback to a very old date if invalid/missing
+        const sortedData = (response.data.data || []).sort((a: FranchiseMovieItem, b: FranchiseMovieItem) => {
             const dateA = a.release_date ? new Date(a.release_date) : new Date(0);
             const dateB = b.release_date ? new Date(b.release_date) : new Date(0);
-
-            // Handle invalid dates gracefully
             if (isNaN(dateA.getTime())) return 1;
             if (isNaN(dateB.getTime())) return -1;
-            
             return dateA.getTime() - dateB.getTime();
         });
 
@@ -84,10 +82,12 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
               <ul>
                 {movies.map((movie) => (
                   <li key={movie.row_index}>
-                    <span className={`movie-watched-status ${movie.watched_till.toLowerCase() !== 'not watched' ? 'watched' : 'not-watched'}`}>
-                      ●
+                    <span
+                      className={`franchise-movie-title ${movie.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}`}
+                      onClick={() => onMovieSelect(movie)}
+                    >
+                      {movie.movies_name}
                     </span>
-                    <span className="movie-title">{movie.movies_name}</span>
                   </li>
                 ))}
               </ul>

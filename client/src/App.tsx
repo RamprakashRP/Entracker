@@ -2,39 +2,34 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import axios from "axios";
-
-// Import the MediaListView component
 import MediaListView from './MediaListView';
 
-// Define the Media Types
+// --- Type Definitions and other components (MediaDropdown) are unchanged ---
+
 type MediaType = "series" | "movie" | "anime" | "anime_movie" | "";
 
-// Map media types to user-friendly labels
 const mediaLabels: Record<MediaType, string> = {
     series: "TV Series",
     movie: "Movie",
     anime: "Anime Series",
     anime_movie: "Anime Movie",
-    '': 'Select Media Type' // Handle empty string case
+    '': 'Select Media Type'
 };
 
-// Convert to an array of [key, label] pairs and sort alphabetically by label
 const sortedMediaOptions = Object.entries(mediaLabels)
     .filter(([key]) => key !== '')
     .sort(([, labelA], [, labelB]) => labelA.localeCompare(labelB));
 
-// Define a type for fetched media items from the backend
 interface FetchedMediaItem {
     series_name?: string;
     movies_name?: string;
     anime_name?: string;
-    row_index: number; // Crucial for updates
-    media_type_key: MediaType; // Keep track of the item's original type
+    row_index: number;
+    media_type_key: MediaType;
     watched_till?: string;
-    [key: string]: any; // Allow other properties
+    [key: string]: any;
 }
 
-// Initial state for the form fields
 const initialForm = {
     mediaType: "" as MediaType,
     mediaName: "",
@@ -43,7 +38,6 @@ const initialForm = {
     watchedTill: "",
 };
 
-// Custom Dropdown Component
 interface MediaDropdownProps {
     options: [string, string][];
     selectedOption: MediaType;
@@ -54,41 +48,33 @@ interface MediaDropdownProps {
 const MediaDropdown: React.FC<MediaDropdownProps> = ({ options, selectedOption, onSelect, placeholder }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const headerRef = useRef<HTMLDivElement>(null); // Ref for the header to attach the wheel listener
+    const headerRef = useRef<HTMLDivElement>(null);
 
-    // This useEffect handles the new scroll-on-hover feature
     useEffect(() => {
         const headerElement = headerRef.current;
-
         const handleWheel = (event: WheelEvent) => {
-            if (!isOpen) { // Only scroll when the dropdown is closed to prevent confusion
-                event.preventDefault(); // Stop the page from scrolling
-
+            if (!isOpen) {
+                event.preventDefault();
                 const currentIndex = options.findIndex(([value]) => value === selectedOption);
                 const isScrollingDown = event.deltaY > 0;
                 let nextIndex = currentIndex;
-
                 if (isScrollingDown) {
                     nextIndex = currentIndex + 1 < options.length ? currentIndex + 1 : 0;
                 } else {
                     nextIndex = currentIndex - 1 >= 0 ? currentIndex - 1 : options.length - 1;
                 }
-
                 onSelect(options[nextIndex][0] as MediaType);
             }
         };
-
         if (headerElement) {
             headerElement.addEventListener('wheel', handleWheel);
         }
-
         return () => {
             if (headerElement) {
                 headerElement.removeEventListener('wheel', handleWheel);
             }
         };
     }, [isOpen, options, selectedOption, onSelect]);
-
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -143,7 +129,7 @@ export default function App() {
     const [currentView, setCurrentView] = useState<'add' | 'list'>('add');
     const [allMediaData, setAllMediaData] = useState<FetchedMediaItem[]>([]);
     const [suggestions, setSuggestions] = useState<FetchedMediaItem[]>([]);
-    const [selectedForUpdate, setSelectedForUpdate] = useState<FetchedMediaItem | null>(null);  
+    const [selectedForUpdate, setSelectedForUpdate] = useState<FetchedMediaItem | null>(null);
 
     const fetchAllMediaData = useCallback(async () => {
         try {
@@ -217,16 +203,14 @@ export default function App() {
         setLoading(true);
         setResult(null);
         setError(null);
-
         if (!form.mediaType || !form.mediaName) {
             setError("Please select a media type and enter a name.");
             setLoading(false);
             return;
         }
-        
         let watchedTillForBackend = "";
         if (form.mediaType === "series" || form.mediaType === "anime") {
-             const sNum = parseInt(form.seasonNumber, 10);
+            const sNum = parseInt(form.seasonNumber, 10);
             if (!form.seasonNumber || isNaN(sNum) || sNum <= 0) {
                 setError("Season number must be a positive number.");
                 setLoading(false); return;
@@ -237,19 +221,16 @@ export default function App() {
                 watchedTillForBackend += ` E${String(eNum).padStart(2, '0')}`;
             }
         }
-
         try {
             const requestData = {
                 mediaType: form.mediaType,
                 mediaName: form.mediaName,
                 watchedTill: watchedTillForBackend,
                 rowIndex: selectedForUpdate ? selectedForUpdate.row_index : undefined,
-                watched: isWatched ? 'True' : 'False', // Pass the new watched status
+                watched: isWatched ? 'True' : 'False',
             };
-
             const method = selectedForUpdate ? 'put' : 'post';
             const response = await axios[method]("http://localhost:5000/add-media", requestData);
-
             setResult({ message: response.data.message, details: response.data.data });
             setForm(initialForm);
             setSelectedForUpdate(null);
@@ -276,8 +257,8 @@ export default function App() {
     return (
         <div className="main-app-wrapper">
             <img src="/RP.png" alt="RP Logo" className="app-logo" />
-            <motion.div 
-                initial={{ opacity: 0, y: 20 }} 
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`glass-card-container ${currentView === 'list' ? 'list-view-active' : ''}`}
             >
@@ -285,15 +266,16 @@ export default function App() {
                     <button className={`tab-button ${currentView === 'add' ? 'active' : ''}`} onClick={() => handleTabClick('add')}>Add Media</button>
                     <button className={`tab-button ${currentView === 'list' ? 'active' : ''}`} onClick={() => handleTabClick('list')}>View List</button>
                 </div>
-
                 <h1 className="app-title">Entracker</h1>
-
                 <AnimatePresence mode="wait">
                     {currentView === 'add' ? (
                         <motion.div key="add-form" exit={{ opacity: 0 }}>
-                            <form onSubmit={handleSubmit} className="form-layout">
+                            {/* --- THIS IS THE MAIN FIX --- */}
+                            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(true); }} className="form-layout">
                                 <div className="form-first-row">
                                     <MediaDropdown options={sortedMediaOptions as [string, string][]} selectedOption={form.mediaType} onSelect={(v) => handleChange(v)} placeholder="Select Media Type" />
+                                </div>
+                                <div className="form-full-width-row">
                                     <div className="input-with-suggestions-container">
                                         <input name="mediaName" type="text" value={form.mediaName} onChange={handleChange} placeholder="Enter name" className="form-input" autoComplete="off" disabled={!form.mediaType} />
                                         <AnimatePresence>
@@ -333,7 +315,7 @@ export default function App() {
                                     <motion.button type="submit" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button">
                                         {loading ? "Processing..." : (selectedForUpdate ? "Update Tracker" : "Add to Tracker")}
                                     </motion.button>
-                                    {!selectedForUpdate && ( // Only show Watchlist button for new entries
+                                    {!selectedForUpdate && (
                                         <motion.button type="button" onClick={() => handleSubmit(false)} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button watchlist">
                                             {loading ? "Processing..." : "Add to Watchlist"}
                                         </motion.button>
@@ -347,11 +329,10 @@ export default function App() {
                         </motion.div>
                     )}
                 </AnimatePresence>
-
                 <AnimatePresence>
-                    {error && <motion.div className="message-box error"><p>{error}</p></motion.div>}
+                    {error && <motion.div className="message-box error" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><p>{error}</p></motion.div>}
                     {result?.message && (
-                        <motion.div className="message-box success">
+                        <motion.div className="message-box success" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                             <h2>{result.message}</h2>
                             {result.details && (
                                 <div className="result-details">
@@ -366,3 +347,4 @@ export default function App() {
         </div>
     );
 }
+

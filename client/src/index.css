@@ -744,3 +744,25 @@ body {
     background: rgba(255,255,255,0.9);
     padding: 2px;
 }
+
+/* --- In client/src/index.css --- */
+/* Add these styles to the bottom */
+
+.franchise-movie-list li {
+    /* These properties ensure the list item can contain a wrapping title */
+    display: block;
+    padding: 0.8rem 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.franchise-movie-title {
+    /* This makes the title wrap and look clickable */
+    white-space: normal;
+    word-wrap: break-word;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.franchise-movie-title:hover {
+    text-decoration: underline;
+}
