@@ -29,8 +29,12 @@ const MediaListView: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [searchSuggestions, setSearchSuggestions] = useState<MediaItem[]>([]);
     const searchContainerRef = useRef<HTMLDivElement>(null);
+
     const [selectedFranchise, setSelectedFranchise] = useState<string | null>(null);
     const [detailsItem, setDetailsItem] = useState<MediaItem | null>(null);
+
+    // State to track if the details modal was opened from the franchise modal
+    const [cameFromFranchise, setCameFromFranchise] = useState<string | null>(null);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -96,10 +100,26 @@ const MediaListView: React.FC = () => {
     };
 
     const handleMovieSelectFromModal = (movie: FranchiseMovieItem) => {
+        // Remember the franchise we came from
+        setCameFromFranchise(selectedFranchise);
+        // Close the franchise modal
         setSelectedFranchise(null);
+        
+        // **THIS IS THE FIX**: Wait for the first modal to start closing before opening the next one.
         setTimeout(() => {
             setDetailsItem(movie);
-        }, 100);
+        }, 150); // A small delay is enough.
+    };
+
+    const handleDetailsClose = () => {
+        // Close the details modal
+        setDetailsItem(null);
+        // If we remembered a franchise, re-open its modal
+        if (cameFromFranchise) {
+            setSelectedFranchise(cameFromFranchise);
+        }
+        // Reset the tracker for next time
+        setCameFromFranchise(null);
     };
 
     const headers = useMemo(() => {
@@ -164,7 +184,7 @@ const MediaListView: React.FC = () => {
                                         <motion.tr key={item.row_index} layout>
                                             {selectedListType === 'series' || selectedListType === 'anime' ? (
                                                 <>
-                                                    <td className={`name-link ${item.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}`} onClick={() => setDetailsItem(item)}>
+                                                    <td className={`name-link ${item.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}`} onClick={() => { setCameFromFranchise(null); setDetailsItem(item); }}>
                                                         {item.series_name || item.anime_name}
                                                     </td>
                                                     <td>{item.series_status || 'N/A'}</td>
@@ -175,7 +195,7 @@ const MediaListView: React.FC = () => {
                                                 </>
                                             ) : (
                                                 <>
-                                                    <td className={`name-link ${item.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}`} onClick={() => setDetailsItem(item)}>
+                                                    <td className={`name-link ${item.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}`} onClick={() => { setCameFromFranchise(null); setDetailsItem(item); }}>
                                                         {item.movies_name}
                                                     </td>
                                                     <td className={item.franchise && item.franchise.toLowerCase() !== 'standalone' ? 'franchise-link' : ''} onClick={() => handleFranchiseClick(item.franchise)}>
@@ -195,6 +215,7 @@ const MediaListView: React.FC = () => {
                     </AnimatePresence>
                 </div>
             </motion.div>
+
             {selectedFranchise && (
                 <FranchiseModal
                     franchiseName={selectedFranchise}
@@ -203,11 +224,12 @@ const MediaListView: React.FC = () => {
                     onMovieSelect={handleMovieSelectFromModal}
                 />
             )}
+
             {detailsItem && (
                 <MediaDetailsModal
                     mediaName={detailsItem.series_name || detailsItem.movies_name || detailsItem.anime_name}
                     mediaType={selectedListType}
-                    onClose={() => setDetailsItem(null)}
+                    onClose={handleDetailsClose}
                 />
             )}
         </>
