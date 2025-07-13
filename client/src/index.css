@@ -888,19 +888,20 @@ body {
 /* 2. Actions Column Centering */
 /* This uses flexbox to perfectly center the button in the cell */
 .media-table td:last-child {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    
 }
 
 /* Give the Actions column header a fixed width and center its text */
-.media-table th:last-child {
-    width: 45px;
-    text-align: center !important;
+.media-table th:last-child,
+.media-table td:last-child {
+    width: 45px; 
+    text-align: center;
+    justify-content: center;
+    align-items: center;
 }
 
 /* 3. Scrollbar Fix */
 /* This reserves space for the scrollbar, so it never overlaps the content */
 .table-container {
-    scrollbar-gutter: stable;
+    padding-right: 0px;
 }
