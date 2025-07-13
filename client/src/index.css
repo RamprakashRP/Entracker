@@ -905,3 +905,83 @@ body {
 .table-container {
     padding-right: 0px;
 }
+
+/* --- Styles for New Franchise Details Modal --- */
+
+.franchise-details-modal-content {
+    max-width: 800px; /* Make the modal wider */
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.franchise-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* This creates two equal 50% columns */
+  gap: 2rem;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.franchise-info-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.franchise-poster {
+    width: 50%;
+    height: auto;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 1px solid rgba(255,255,255,0.1);
+    display: block; /* Necessary for margin auto to work */
+    margin: 0 auto 1rem; /* Centers the poster horizontally and adds a 1rem margin at the bottom */
+}
+
+.franchise-poster-placeholder {
+    width: 100%;
+    aspect-ratio: 2/3;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.5);
+    font-style: italic;
+}
+
+.franchise-info-panel h4 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #fff;
+    text-align: center;
+}
+
+.franchise-overview {
+    font-size: 0.85rem;
+    color: #ccc;
+    line-height: 1.6;
+    max-height: 150px; /* Limit height and allow scrolling if needed */
+    overflow-y: auto;
+    padding-right: 5px; /* For scrollbar spacing */
+}
+
+.franchise-count {
+    text-align: center;
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.7);
+    margin-top: auto; /* Push to the bottom */
+}
+
+.franchise-movie-list {
+    border-left: 1px solid rgba(255, 255, 255, 0.15);
+    padding-left: 2rem;
+    overflow-y: auto; /* Make the list itself scrollable */
+}
+
+.franchise-movie-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
