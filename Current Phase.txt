@@ -1,0 +1,4 @@
+
+5. We already did it but i see while changing we have missed out one of the Major feature that we had already completed that is edit details option in list view where there will be a edit button represented by a pen icon right to every row of the data and so that when clicked it brings a pop up for series and anime series where name, season, episode can be edited and for movies and anime movies it gives the option to edit the movie name and it gives 2 buttons as "Not Watched" and "Watched" so that if the movie ismistakenly mentioned as Watched then it can be changed to not watched or if it is in the watchlist it can be promoted to watched
+
+Small issue of misalligment in edit lines in viewlist

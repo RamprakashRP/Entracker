@@ -9,6 +9,7 @@ export interface FranchiseMovieItem {
   movies_name: string;
   watched: string;
   release_date: string;
+  media_type_key: 'movie' | 'anime_movie'; // Add the missing property
   [key: string]: any;
 }
 
@@ -31,7 +32,13 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
       try {
         const response = await axios.get(`http://localhost:5000/api/franchise/${mediaType}/${franchiseName}`);
         
-        const sortedData = (response.data.data || []).sort((a: FranchiseMovieItem, b: FranchiseMovieItem) => {
+        // Add the media_type_key to each movie item before sorting
+        const typedData = (response.data.data || []).map((item: any) => ({
+            ...item,
+            media_type_key: mediaType
+        }));
+
+        const sortedData = typedData.sort((a: FranchiseMovieItem, b: FranchiseMovieItem) => {
             const dateA = a.release_date ? new Date(a.release_date) : new Date(0);
             const dateB = b.release_date ? new Date(b.release_date) : new Date(0);
             if (isNaN(dateA.getTime())) return 1;
@@ -94,7 +101,7 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
             )}
           </div>
           <div className="modal-actions">
-            <button className="modal-button secondary" onClick={onClose}>Close</button>
+            <button className="modal-button secondary" onClick={onClose}>Cancel</button>
           </div>
         </motion.div>
       </motion.div>

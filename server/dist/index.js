@@ -26,10 +26,7 @@ app.use(express_1.default.json());
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const PORT = process.env.PORT || 5000;
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
-const perplexity = new openai_1.default({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: 'https://api.perplexity.ai',
-});
+const perplexity = new openai_1.default({ apiKey: process.env.OPENAI_API_KEY, baseURL: 'https://api.perplexity.ai' });
 const SHEET_CONFIG = {
     series: { sheetName: 'Series', range: 'Series!A:I', columns: ['series_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched', 'release_date'] },
     movie: { sheetName: 'Movies', range: 'Movies!A:H', columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched', 'release_date'] },
@@ -46,7 +43,7 @@ const getPromptForMediaType = (mediaType, mediaName) => {
     let userMessageContent = `Get details for the ${mediaType}: "${mediaName}". `;
     const commonKeys = `"expected_on" (string, "Month Year" or "Available"), "release_date" (string, in YYYY-MM-DD format).`;
     if (mediaType.includes('movie')) {
-        userMessageContent += `JSON keys: "franchise" (string, the franchise name or "Standalone"), "next_part" (string, "Yes" or "No"), ${commonKeys}`;
+        userMessageContent += `JSON keys: "next_part" (string, "Yes" or "No").`;
     }
     else {
         userMessageContent += `JSON keys: "series_status" (string, "On Going" or "Completed"), "next_season" (string, "Yes" or "No"), ${commonKeys}`;
@@ -62,93 +59,106 @@ const transformResponse = (response, watchedTill, mediaType, watched) => {
     data.watched = watched;
     return data;
 };
-const addMediaHandler = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
-    const { mediaType, mediaName, watchedTill, watched } = req.body;
-    if (!mediaType || !mediaName || watched === undefined) {
-        return res.status(400).json({ error: 'mediaType, mediaName, and watched are required.' });
+app.get('/api/search-tmdb', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { mediaType, name } = req.query;
+    if (!mediaType || !name) {
+        return res.status(400).json({ error: 'mediaType and name are required.' });
+    }
+    if (!TMDB_API_KEY)
+        return res.status(500).json({ error: 'TMDB key not configured.' });
+    const searchPath = mediaType.toString().includes('movie') ? 'movie' : 'tv';
+    try {
+        const searchUrl = `https://api.themoviedb.org/3/search/${searchPath}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name.toString())}`;
+        const searchResponse = yield axios_1.default.get(searchUrl);
+        const results = searchResponse.data.results.map((item) => ({
+            id: item.id,
+            name: item.title || item.name,
+            release_date: item.release_date || item.first_air_date,
+        }));
+        res.status(200).json({ data: results });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to search TMDB.' });
+    }
+}));
+app.post('/add-media', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d;
+    const { mediaType, tmdbId, watched, watchedTill } = req.body;
+    if (!mediaType || !tmdbId || watched === undefined) {
+        return res.status(400).json({ error: 'mediaType, tmdbId, and watched are required.' });
     }
     try {
         const sheets = yield getSheetsClient();
         const sheetConfig = SHEET_CONFIG[mediaType];
         if (!sheetConfig)
             throw new Error(`Invalid mediaType: ${mediaType}`);
-        // --- Step 1: Gather ALL data before writing anything ---
-        console.log(`[Step 1] Gathering all data for "${mediaName}"...`);
-        const allNewRows = [];
-        const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(mediaName)}`;
-        const searchResponse = yield axios_1.default.get(searchUrl);
-        const tmdbItem = searchResponse.data.results[0];
-        if (!(tmdbItem === null || tmdbItem === void 0 ? void 0 : tmdbItem.id)) {
-            return res.status(404).json({ error: `Could not find "${mediaName}" on TMDB. Please check the spelling.` });
+        const searchPath = mediaType.includes('movie') ? 'movie' : 'tv';
+        const detailsUrl = `https://api.themoviedb.org/3/${searchPath}/${tmdbId}?api_key=${TMDB_API_KEY}`;
+        const detailsResponse = yield axios_1.default.get(detailsUrl);
+        const tmdbDetails = detailsResponse.data;
+        const officialName = tmdbDetails.title || tmdbDetails.name;
+        const existingMoviesResponse = yield sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: sheetConfig.range });
+        const existingMovieNames = new Set(((_a = existingMoviesResponse.data.values) === null || _a === void 0 ? void 0 : _a.slice(1).map(row => row[0].toLowerCase())) || []);
+        if (existingMovieNames.has(officialName.toLowerCase())) {
+            return res.status(409).json({ error: `"${officialName}" is already in your list.` });
         }
-        const officialName = tmdbItem.title;
-        console.log(`... Found official name: "${officialName}"`);
         const prompt = getPromptForMediaType(mediaType, officialName);
         const aiResponse = yield perplexity.chat.completions.create({ model: 'sonar-pro', messages: prompt });
-        const content = (_b = (_a = aiResponse.choices[0]) === null || _a === void 0 ? void 0 : _a.message) === null || _b === void 0 ? void 0 : _b.content;
-        if (!content) {
-            throw new Error('No content received from AI.');
-        }
-        const jsonRegex = /```json\s*([\s\S]*?)\s*```|({[\s\S]*})/;
-        const match = content.match(jsonRegex);
-        if (!match || (!match[1] && !match[2])) {
-            throw new Error('AI did not return valid JSON.');
-        }
-        const jsonString = match[1] || match[2];
-        let mediaData = JSON.parse(jsonString);
-        const movieDetailsUrl = `https://api.themoviedb.org/3/movie/${tmdbItem.id}?api_key=${TMDB_API_KEY}`;
-        const movieDetailsResponse = yield axios_1.default.get(movieDetailsUrl);
-        const collection = movieDetailsResponse.data.belongs_to_collection;
-        // **THE FIX IS HERE**: Use .replace() to remove " Collection" from the name
-        const franchiseName = collection ? collection.name.replace(/ Collection/i, '').trim() : "Standalone";
-        mediaData.franchise = franchiseName;
+        const content = ((_c = (_b = aiResponse.choices[0]) === null || _b === void 0 ? void 0 : _b.message) === null || _c === void 0 ? void 0 : _c.content) || '{}';
+        const mediaData = JSON.parse(((_d = content.match(/({[\s\S]*})/)) === null || _d === void 0 ? void 0 : _d[1]) || '{}');
+        const collection = tmdbDetails.belongs_to_collection;
+        mediaData.franchise = collection ? collection.name.replace(/ Collection/i, '').trim() : "Standalone";
+        mediaData.release_date = tmdbDetails.release_date || tmdbDetails.first_air_date;
         const transformedData = transformResponse(mediaData, watchedTill, mediaType, watched);
-        transformedData.movies_name = officialName;
-        allNewRows.push(sheetConfig.columns.map(col => transformedData[col] || ''));
-        // --- Step 2: If a franchise was found, gather all other movies ---
+        const nameKey = mediaType.includes('movie') ? 'movies_name' : `${mediaType}_name`;
+        transformedData[nameKey] = officialName;
+        const allNewRows = [sheetConfig.columns.map(col => transformedData[col] || '')];
         if (collection === null || collection === void 0 ? void 0 : collection.id) {
-            console.log(`[Step 2] Found franchise "${franchiseName}". Gathering other movies...`);
-            const collectionUrl = `https://api.themoviedb.org/3/collection/${collection.id}?api_key=${TMDB_API_KEY}`;
-            const collectionDetails = yield axios_1.default.get(collectionUrl);
-            const franchiseMovies = collectionDetails.data.parts || [];
-            const existingMoviesResponse = yield sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: sheetConfig.range });
-            const existingMovieNames = new Set(((_c = existingMoviesResponse.data.values) === null || _c === void 0 ? void 0 : _c.slice(1).map(row => row[0])) || []);
-            for (const movie of franchiseMovies) {
-                if (movie.title && movie.title.toLowerCase() !== officialName.toLowerCase() && !existingMovieNames.has(movie.title)) {
-                    const movieRow = {
-                        movies_name: movie.title,
-                        franchise: franchiseName, // Use the same, consistent franchise name
-                        watched_till: 'Not Watched',
-                        next_part: 'Yes',
-                        expected_on: movie.release_date && new Date(movie.release_date) < new Date() ? 'Available' : 'N/A',
-                        update: new Date().toISOString(),
-                        watched: 'False',
-                        release_date: movie.release_date || 'N/A'
-                    };
-                    allNewRows.push(sheetConfig.columns.map(col => movieRow[col] || ''));
+            (() => __awaiter(void 0, void 0, void 0, function* () {
+                const collectionUrl = `https://api.themoviedb.org/3/collection/${collection.id}?api_key=${TMDB_API_KEY}`;
+                const collectionDetails = yield axios_1.default.get(collectionUrl);
+                const franchiseMovies = collectionDetails.data.parts || [];
+                const newRows = [];
+                for (const movie of franchiseMovies) {
+                    if (movie.title && movie.id !== tmdbId && !existingMovieNames.has(movie.title.toLowerCase())) {
+                        newRows.push(sheetConfig.columns.map(col => {
+                            if (col === nameKey)
+                                return movie.title;
+                            if (col === 'franchise')
+                                return mediaData.franchise;
+                            if (col === 'watched_till')
+                                return 'Not Watched';
+                            if (col === 'next_part')
+                                return 'Yes';
+                            if (col === 'update')
+                                return new Date().toISOString();
+                            if (col === 'watched')
+                                return 'False';
+                            if (col === 'release_date')
+                                return movie.release_date || 'N/A';
+                            return '';
+                        }));
+                    }
                 }
-            }
+                if (newRows.length > 0) {
+                    yield sheets.spreadsheets.values.append({
+                        spreadsheetId: SPREADSHEET_ID, range: sheetConfig.range, valueInputOption: 'USER_ENTERED',
+                        requestBody: { values: newRows },
+                    });
+                }
+            }))();
         }
-        // --- Step 3: Write everything to the sheet in a single batch ---
-        if (allNewRows.length > 0) {
-            console.log(`[Step 3] Writing ${allNewRows.length} row(s) to the sheet...`);
-            yield sheets.spreadsheets.values.append({
-                spreadsheetId: SPREADSHEET_ID,
-                range: sheetConfig.range,
-                valueInputOption: 'USER_ENTERED',
-                requestBody: { values: allNewRows },
-            });
-        }
-        res.status(201).json({ message: 'Media and franchise populated successfully!', data: transformedData });
+        yield sheets.spreadsheets.values.append({
+            spreadsheetId: SPREADSHEET_ID, range: sheetConfig.range, valueInputOption: 'USER_ENTERED',
+            requestBody: { values: allNewRows },
+        });
+        res.status(201).json({ message: 'Media added successfully!', data: transformedData });
     }
     catch (error) {
-        console.error('Error in addMediaHandler:', error);
-        res.status(500).json({ error: error.message || 'An internal server error occurred.' });
+        console.error("Add/Update Error:", error);
+        res.status(500).json({ error: error.message || 'An error occurred.' });
     }
-});
-app.post('/add-media', addMediaHandler);
-// --- All other GET endpoints remain the same ---
+}));
 app.get('/get-media/:mediaType', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { mediaType } = req.params;
     const config = SHEET_CONFIG[mediaType];
@@ -244,17 +254,74 @@ app.get('/api/details/:mediaType/:name', (req, res) => __awaiter(void 0, void 0,
         const detailsResponse = yield axios_1.default.get(detailsUrl);
         const details = detailsResponse.data;
         const formattedData = {
-            name: details.name || details.title,
-            overview: details.overview,
+            name: details.name || details.title, overview: details.overview,
             poster_path: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : null,
-            vote_average: details.vote_average,
-            genres: details.genres.map((g) => g.name),
+            vote_average: details.vote_average, genres: details.genres.map((g) => g.name),
             providers: ((_c = (_b = (_a = details['watch/providers']) === null || _a === void 0 ? void 0 : _a.results) === null || _b === void 0 ? void 0 : _b.US) === null || _c === void 0 ? void 0 : _c.flatrate) || ((_f = (_e = (_d = details['watch/providers']) === null || _d === void 0 ? void 0 : _d.results) === null || _e === void 0 ? void 0 : _e.IN) === null || _f === void 0 ? void 0 : _f.flatrate) || [],
         };
         res.status(200).json({ data: formattedData });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to fetch details from TMDB.' });
+    }
+}));
+app.put('/update-media', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { rowIndex, mediaType, name, watched, watchedTill } = req.body;
+    if (!rowIndex || !mediaType) {
+        return res.status(400).json({ error: 'rowIndex and mediaType are required.' });
+    }
+    try {
+        const sheets = yield getSheetsClient();
+        const sheetConfig = SHEET_CONFIG[mediaType];
+        if (!sheetConfig)
+            throw new Error(`Invalid mediaType: ${mediaType}`);
+        const updates = [];
+        // Find the letter for each column we might update
+        const nameColLetter = String.fromCharCode('A'.charCodeAt(0) + sheetConfig.columns.indexOf(sheetConfig.columns[0]));
+        const watchedColLetter = String.fromCharCode('A'.charCodeAt(0) + sheetConfig.columns.indexOf('watched'));
+        const watchedTillColLetter = String.fromCharCode('A'.charCodeAt(0) + sheetConfig.columns.indexOf('watched_till'));
+        // Update name if a new one was provided
+        if (name) {
+            updates.push(sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: `${sheetConfig.sheetName}!${nameColLetter}${rowIndex}`,
+                valueInputOption: 'USER_ENTERED',
+                requestBody: { values: [[name]] }
+            }));
+        }
+        // Update watched status if provided
+        if (watched) {
+            updates.push(sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: `${sheetConfig.sheetName}!${watchedColLetter}${rowIndex}`,
+                valueInputOption: 'USER_ENTERED',
+                requestBody: { values: [[watched]] }
+            }));
+            // Also update watched_till for movies when changing watched status
+            if (mediaType.includes('movie')) {
+                updates.push(sheets.spreadsheets.values.update({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: `${sheetConfig.sheetName}!${watchedTillColLetter}${rowIndex}`,
+                    valueInputOption: 'USER_ENTERED',
+                    requestBody: { values: [[watched === 'True' ? 'Watched' : 'Not Watched']] }
+                }));
+            }
+        }
+        // Update watched_till for series if provided
+        if (watchedTill && (mediaType === 'series' || mediaType === 'anime')) {
+            updates.push(sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: `${sheetConfig.sheetName}!${watchedTillColLetter}${rowIndex}`,
+                valueInputOption: 'USER_ENTERED',
+                requestBody: { values: [[watchedTill]] }
+            }));
+        }
+        yield Promise.all(updates);
+        res.status(200).json({ message: 'Update successful!' });
+    }
+    catch (error) {
+        console.error("Update Error:", error);
+        res.status(500).json({ error: 'Failed to update entry.' });
     }
 }));
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));

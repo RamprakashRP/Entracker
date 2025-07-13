@@ -766,3 +766,141 @@ body {
 .franchise-movie-title:hover {
     text-decoration: underline;
 }
+
+/* Styles for Disambiguation Modal */
+.disambiguation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.disambiguation-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.disambiguation-title {
+  cursor: pointer;
+  font-weight: 500;
+}
+.disambiguation-title:hover {
+  text-decoration: underline;
+}
+
+.select-button {
+  background: none;
+  border: 2px solid #39ff14;
+  color: #39ff14;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.select-button:hover {
+  background: #39ff14;
+  color: #000;
+}
+
+/* --- Final UI Polish and New Modal Styles --- */
+
+/* Fix for Add Media form congestion */
+.form-full-width-row {
+    margin-top: 1.25rem;
+}
+.submit-button-group {
+    margin-top: 1.25rem;
+}
+
+/* Fix for Modal Text Visibility */
+.modal-content p,
+.disambiguation-title {
+    color: #f0f0f0; /* Use a light off-white for readability */
+}
+.disambiguation-title:hover {
+    color: #ffffff;
+}
+
+/* Styles for Disambiguation Modal */
+.disambiguation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.disambiguation-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.disambiguation-title {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.select-button {
+  background: none;
+  border: 2px solid #39ff14;
+  color: #39ff14;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.select-button:hover {
+  background: #39ff14;
+  color: #000;
+}
+
+/* --- Final UI Polish for Table View --- */
+
+/* 1. Column Alignment */
+.text-left {
+  text-align: left !important;
+}
+
+.text-center {
+  text-align: center !important;
+}
+
+/* 2. Actions Column Centering */
+/* This uses flexbox to perfectly center the button in the cell */
+.media-table td:last-child {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Give the Actions column header a fixed width and center its text */
+.media-table th:last-child {
+    width: 45px;
+    text-align: center !important;
+}
+
+/* 3. Scrollbar Fix */
+/* This reserves space for the scrollbar, so it never overlaps the content */
+.table-container {
+    scrollbar-gutter: stable;
+}
