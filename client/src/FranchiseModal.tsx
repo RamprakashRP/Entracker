@@ -83,7 +83,7 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 50, opacity: 0 }}
         >
-          {loading && <p>Loading franchise...</p>}
+          {loading && <p className="loading-state">Loading franchise...</p>}
           {error && <p className="modal-error">{error}</p>}
           {!loading && !error && (
             <div className="franchise-layout-grid">

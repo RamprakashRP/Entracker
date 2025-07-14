@@ -5,13 +5,15 @@ import axios from "axios";
 import MediaListView from './MediaListView';
 import { DisambiguationModal, type TMDBResult } from './DisambiguationModal';
 import { MediaDetailsModal } from './MediaDetailsModal';
-import { ConfirmationModal } from './ConfirmationModal';
 
 type MediaType = "series" | "movie" | "anime" | "anime_movie" | "";
 
 const mediaLabels: Record<MediaType, string> = {
-    series: "TV Series", movie: "Movie", anime: "Anime Series",
-    anime_movie: "Anime Movie", '': 'Select Media Type'
+    series: "TV Series",
+    movie: "Movie",
+    anime: "Anime Series",
+    anime_movie: "Anime Movie",
+    '': 'Select Media Type'
 };
 
 const sortedMediaOptions = Object.entries(mediaLabels).filter(([key]) => key !== '').sort(([, a], [, b]) => a.localeCompare(b));
@@ -86,15 +88,10 @@ export default function App() {
     const [currentView, setCurrentView] = useState<'add' | 'list'>('add');
     const [allMediaData, setAllMediaData] = useState<FetchedMediaItem[]>([]);
     const [suggestions, setSuggestions] = useState<FetchedMediaItem[]>([]);
-    const [selectedForUpdate, setSelectedForUpdate] = useState<FetchedMediaItem | null>(null);
-
-    const [modalState, setModalState] = useState<{
-        isOpen: boolean; title: string; message: string;
-        confirmText: string; onConfirm: () => void;
-    }>({ isOpen: false, title: '', message: '', confirmText: 'Yes', onConfirm: () => {} });
+    
     const [disambiguation, setDisambiguation] = useState<{ isOpen: boolean; results: TMDBResult[]; isWatched: boolean }>({ isOpen: false, results: [], isWatched: false });
     const [detailsItem, setDetailsItem] = useState<{ name: string; type: string } | null>(null);
-
+    
     const fetchAllMediaData = useCallback(async () => {
         try {
             const types: MediaType[] = ["series", "movie", "anime", "anime_movie"];
@@ -172,14 +169,12 @@ export default function App() {
     
     const handleChange = (e: React.ChangeEvent<HTMLInputElement> | MediaType) => {
         if (typeof e === 'string') {
-            setSelectedForUpdate(null);
             setSuggestions([]);
             setForm({ ...initialForm, mediaType: e });
         } else {
             const { name, value } = e.target;
             setForm(prev => ({ ...prev, [name]: value }));
             if (name === "mediaName") {
-                setSelectedForUpdate(null);
                 if (value.length > 1 && form.mediaType) {
                     const nameKey = form.mediaType.includes('movie') ? 'movies_name' : `${form.mediaType}_name`;
                     setSuggestions(allMediaData.filter(item => item.media_type_key === form.mediaType && item[nameKey]?.toLowerCase().includes(value.toLowerCase())));
@@ -198,14 +193,13 @@ export default function App() {
             episodeNumber: (item.watched_till && (item.media_type_key === 'series' || item.media_type_key === 'anime')) ? item.watched_till.match(/E(\d+)/)?.[1]?.replace(/^0+/, '') || '' : '',
             watchedTill: (item.watched_till && (item.media_type_key === 'movie' || item.media_type_key === 'anime_movie')) ? item.watched_till : '',
         });
-        setSelectedForUpdate(item);
         setSuggestions([]);
     };
-    
+
     const handleTabClick = (view: 'add' | 'list') => {
         setCurrentView(view);
         setResult(null); setError(null);
-        if (view === 'add') { setForm(initialForm); setSuggestions([]); setSelectedForUpdate(null); }
+        if (view === 'add') { setForm(initialForm); setSuggestions([]); }
     };
 
     return (
@@ -227,12 +221,6 @@ export default function App() {
                     onClose={() => setDetailsItem(null)}
                 />
             )}
-            <ConfirmationModal 
-                isOpen={modalState.isOpen} title={modalState.title}
-                message={modalState.message} onConfirm={modalState.onConfirm}
-                onCancel={() => setModalState({ ...modalState, isOpen: false })}
-                confirmText={modalState.confirmText}
-            />
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 className={`glass-card-container ${currentView === 'list' ? 'list-view-active' : ''}`}>
@@ -286,13 +274,11 @@ export default function App() {
                                 </div>
                                 <div className="submit-button-group">
                                     <motion.button type="submit" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button">
-                                        {loading ? "Processing..." : (selectedForUpdate ? "Update Tracker" : "Add to Tracker")}
+                                        {loading ? "Processing..." : "Add to Tracker"}
                                     </motion.button>
-                                    {!selectedForUpdate && (
-                                        <motion.button type="button" onClick={() => handleFormSubmit(false)} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button watchlist">
-                                            {loading ? "Processing..." : "Add to Watchlist"}
-                                        </motion.button>
-                                    )}
+                                    <motion.button type="button" onClick={() => handleFormSubmit(false)} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button watchlist">
+                                        {loading ? "Processing..." : "Add to Watchlist"}
+                                    </motion.button>
                                 </div>
                             </form>
                         </motion.div>
