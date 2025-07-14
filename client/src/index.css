@@ -1,6 +1,10 @@
 /* client/src/index.css */
 
 /* Global styles */
+html, body {
+    background-color: #000; /* Set the background to black */
+}
+
 body {
     font-family: "Inter", sans-serif;
     margin: 0;
@@ -10,7 +14,6 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background: linear-gradient(135deg, #4b0082, #8a2be2, #ff1493);
 }
 
 #root, .main-app-wrapper {
@@ -45,6 +48,7 @@ body {
 .glass-card-container {
     width: 100%;
     max-width: 600px;
+    position: relative;
     background: rgba(22, 11, 44, 0.4);
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -984,4 +988,13 @@ body {
     list-style: none;
     padding: 0;
     margin: 0;
+}
+
+/* Style for the background container */
+.background-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }

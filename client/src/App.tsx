@@ -5,15 +5,14 @@ import axios from "axios";
 import MediaListView from './MediaListView';
 import { DisambiguationModal, type TMDBResult } from './DisambiguationModal';
 import { MediaDetailsModal } from './MediaDetailsModal';
+import { ConfirmationModal } from './ConfirmationModal';
+import DotGrid from './DotGrid';
 
 type MediaType = "series" | "movie" | "anime" | "anime_movie" | "";
 
 const mediaLabels: Record<MediaType, string> = {
-    series: "TV Series",
-    movie: "Movie",
-    anime: "Anime Series",
-    anime_movie: "Anime Movie",
-    '': 'Select Media Type'
+    series: "TV Series", movie: "Movie", anime: "Anime Series",
+    anime_movie: "Anime Movie", '': 'Select Media Type'
 };
 
 const sortedMediaOptions = Object.entries(mediaLabels).filter(([key]) => key !== '').sort(([, a], [, b]) => a.localeCompare(b));
@@ -88,10 +87,15 @@ export default function App() {
     const [currentView, setCurrentView] = useState<'add' | 'list'>('add');
     const [allMediaData, setAllMediaData] = useState<FetchedMediaItem[]>([]);
     const [suggestions, setSuggestions] = useState<FetchedMediaItem[]>([]);
+    const [selectedForUpdate, setSelectedForUpdate] = useState<FetchedMediaItem | null>(null);
     
+    const [modalState, setModalState] = useState<{
+        isOpen: boolean; title: string; message: string;
+        confirmText: string; onConfirm: () => void;
+    }>({ isOpen: false, title: '', message: '', confirmText: 'Yes', onConfirm: () => {} });
     const [disambiguation, setDisambiguation] = useState<{ isOpen: boolean; results: TMDBResult[]; isWatched: boolean }>({ isOpen: false, results: [], isWatched: false });
     const [detailsItem, setDetailsItem] = useState<{ name: string; type: string } | null>(null);
-    
+
     const fetchAllMediaData = useCallback(async () => {
         try {
             const types: MediaType[] = ["series", "movie", "anime", "anime_movie"];
@@ -114,13 +118,41 @@ export default function App() {
         setResult(null);
 
         try {
+            // First, check for local exact duplicates to avoid unnecessary API calls
+            const nameKey = form.mediaType.includes('movie') ? 'movies_name' : `${form.mediaType}_name`;
+            const localDuplicate = allMediaData.find(item => item[nameKey]?.toLowerCase() === form.mediaName.toLowerCase());
+
+            if(localDuplicate) {
+                 if (localDuplicate.watched === 'False' && isWatched) {
+                    setModalState({
+                        isOpen: true, title: "Item in Watchlist",
+                        message: `"${form.mediaName}" is in your watchlist. Update it to "Watched"?`,
+                        confirmText: "Yes, Update",
+                        onConfirm: () => {
+                            setModalState({ ...modalState, isOpen: false });
+                            updateToWatched(localDuplicate.row_index);
+                        }
+                    });
+                } else {
+                    setModalState({
+                        isOpen: true, title: "Duplicate Entry",
+                        message: `You've already added "${form.mediaName}".`,
+                        confirmText: "OK",
+                        onConfirm: () => setModalState({ ...modalState, isOpen: false }),
+                    });
+                }
+                setLoading(false);
+                return;
+            }
+
+            // If no exact local duplicate, proceed to TMDB search for disambiguation
             const searchRes = await axios.get(`http://localhost:5000/api/search-tmdb`, {
                 params: { mediaType: form.mediaType, name: form.mediaName }
             });
             
             const results = searchRes.data.data;
             if (results.length === 0) {
-                setError("No results found. Please check the spelling.");
+                setError("No results found on TMDB. Please check the spelling.");
             } else if (results.length === 1) {
                 await addMediaById(results[0].id, isWatched);
             } else {
@@ -133,13 +165,28 @@ export default function App() {
         }
     };
 
+    const updateToWatched = async (rowIndex: number) => {
+        setLoading(true);
+        try {
+            await axios.put("http://localhost:5000/update-media", {
+                rowIndex: rowIndex, mediaType: form.mediaType, watched: 'True',
+            });
+            setResult({ message: `"${form.mediaName}" updated to "Watched"!` });
+            await fetchAllMediaData();
+            setForm(initialForm);
+        } catch (err: any) {
+            setError(err.response?.data?.error || "Update failed.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const addMediaById = async (tmdbId: number, isWatched: boolean) => {
         setDisambiguation({ isOpen: false, results: [], isWatched: false });
         setLoading(true);
         try {
             const response = await axios.post("http://localhost:5000/add-media", {
-                mediaType: form.mediaType,
-                tmdbId: tmdbId,
+                mediaType: form.mediaType, tmdbId: tmdbId,
                 watched: isWatched ? 'True' : 'False',
                 watchedTill: `S${String(form.seasonNumber || 1).padStart(2, '0')} E${String(form.episodeNumber || 0).padStart(2, '0')}`
             });
@@ -166,7 +213,7 @@ export default function App() {
             return { ...prev, [name]: newValue.toString() };
         });
     };
-    
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement> | MediaType) => {
         if (typeof e === 'string') {
             setSuggestions([]);
@@ -186,12 +233,13 @@ export default function App() {
     };
 
     const handleSuggestionClick = (item: FetchedMediaItem) => {
+        const nameKey = item.media_type_key.includes('movie') ? 'movies_name' : `${item.media_type_key}_name`;
         setForm({
-            mediaType: item.media_type_key as MediaType,
-            mediaName: (item.series_name || item.movies_name || item.anime_name || '') as string,
-            seasonNumber: (item.watched_till && (item.media_type_key === 'series' || item.media_type_key === 'anime')) ? item.watched_till.match(/S(\d+)/)?.[1]?.replace(/^0+/, '') || '' : '',
-            episodeNumber: (item.watched_till && (item.media_type_key === 'series' || item.media_type_key === 'anime')) ? item.watched_till.match(/E(\d+)/)?.[1]?.replace(/^0+/, '') || '' : '',
-            watchedTill: (item.watched_till && (item.media_type_key === 'movie' || item.media_type_key === 'anime_movie')) ? item.watched_till : '',
+            mediaType: item.media_type_key,
+            mediaName: item[nameKey] || '',
+            seasonNumber: (item.watched_till && !item.media_type_key.includes('movie')) ? item.watched_till.match(/S(\d+)/)?.[1]?.replace(/^0+/, '') || '' : '',
+            episodeNumber: (item.watched_till && !item.media_type_key.includes('movie')) ? item.watched_till.match(/E(\d+)/)?.[1]?.replace(/^0+/, '') || '' : '',
+            watchedTill: item.watched_till || '',
         });
         setSuggestions([]);
     };
@@ -204,6 +252,20 @@ export default function App() {
 
     return (
         <div className="main-app-wrapper">
+            <div className="background-container">
+                <DotGrid 
+                    dotSize={2}
+                    gap={10}
+                    baseColor="#ff0080"
+                    activeColor="#00ffe5"
+                    proximity={80}
+                    shockRadius={100}
+                    shockStrength={20}
+                    resistance={250}
+                    returnDuration={0.5}
+                />
+            </div>
+            
             <img src="/RP.png" alt="RP Logo" className="app-logo" />
             
             {disambiguation.isOpen && (
@@ -221,9 +283,18 @@ export default function App() {
                     onClose={() => setDetailsItem(null)}
                 />
             )}
+            <ConfirmationModal 
+                isOpen={modalState.isOpen} title={modalState.title}
+                message={modalState.message} onConfirm={modalState.onConfirm}
+                onCancel={() => setModalState({ ...modalState, isOpen: false })}
+                confirmText={modalState.confirmText}
+            />
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                className={`glass-card-container ${currentView === 'list' ? 'list-view-active' : ''}`}>
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }}
+                className={`glass-card-container ${currentView === 'list' ? 'list-view-active' : ''}`}
+            >
                 <div className="tab-navigation">
                     <button className={`tab-button ${currentView === 'add' ? 'active' : ''}`} onClick={() => handleTabClick('add')}>Add Media</button>
                     <button className={`tab-button ${currentView === 'list' ? 'active' : ''}`} onClick={() => handleTabClick('list')}>View List</button>
