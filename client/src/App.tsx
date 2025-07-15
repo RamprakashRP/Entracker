@@ -89,7 +89,7 @@ export default function App() {
     const [currentView, setCurrentView] = useState<'add' | 'list'>('add');
     const [allMediaData, setAllMediaData] = useState<FetchedMediaItem[]>([]);
     const [suggestions, setSuggestions] = useState<FetchedMediaItem[]>([]);
-    const [selectedForUpdate, setSelectedForUpdate] = useState<FetchedMediaItem | null>(null);
+    //const [selectedForUpdate, setSelectedForUpdate] = useState<FetchedMediaItem | null>(null);
     
     const [modalState, setModalState] = useState<{
         isOpen: boolean; title: string; message: string;
