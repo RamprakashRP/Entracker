@@ -19,6 +19,7 @@ interface MediaDetailsModalProps {
 }
 
 export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName, mediaType, onClose }) => {
+    const API_URL = import.meta.env.VITE_API_BASE_URL;
     const [details, setDetails] = useState<Details | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -29,7 +30,7 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName,
             setLoading(true);
             setError(null);
             try {
-                const response = await axios.get(`http://localhost:5000/api/details/${mediaType}/${encodeURIComponent(mediaName)}`);
+                const response = await axios.get(`${API_URL}/api/details/${mediaType}/${encodeURIComponent(mediaName)}`);
                 setDetails(response.data.data);
             } catch (err) {
                 setError('Failed to load details.');

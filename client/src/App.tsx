@@ -80,6 +80,8 @@ const MediaDropdown: React.FC<MediaDropdownProps> = ({ options, selectedOption, 
 };
 
 export default function App() {
+    const API_URL = import.meta.env.VITE_API_BASE_URL;
+    
     const [form, setForm] = useState(initialForm);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<{ message: string; details?: any } | null>(null);
@@ -102,7 +104,7 @@ export default function App() {
             let allData: FetchedMediaItem[] = [];
             for (const type of types) {
                 if (!type) continue;
-                const response = await axios.get(`http://localhost:5000/get-media/${type}`);
+                const response = await axios.get(`${API_URL}/get-media/${type}`);
                 allData = allData.concat((response.data.data || []).map((item: any) => ({ ...item, media_type_key: type })));
             }
             setAllMediaData(allData);
@@ -146,7 +148,7 @@ export default function App() {
             }
 
             // If no exact local duplicate, proceed to TMDB search for disambiguation
-            const searchRes = await axios.get(`http://localhost:5000/api/search-tmdb`, {
+            const searchRes = await axios.get(`${API_URL}/api/search-tmdb`, {
                 params: { mediaType: form.mediaType, name: form.mediaName }
             });
             
@@ -168,7 +170,7 @@ export default function App() {
     const updateToWatched = async (rowIndex: number) => {
         setLoading(true);
         try {
-            await axios.put("http://localhost:5000/update-media", {
+            await axios.put(`${API_URL}/update-media`, {
                 rowIndex: rowIndex, mediaType: form.mediaType, watched: 'True',
             });
             setResult({ message: `"${form.mediaName}" updated to "Watched"!` });
@@ -185,7 +187,7 @@ export default function App() {
         setDisambiguation({ isOpen: false, results: [], isWatched: false });
         setLoading(true);
         try {
-            const response = await axios.post("http://localhost:5000/add-media", {
+            const response = await axios.post(`${API_URL}/add-media`, {
                 mediaType: form.mediaType, tmdbId: tmdbId,
                 watched: isWatched ? 'True' : 'False',
                 watchedTill: `S${String(form.seasonNumber || 1).padStart(2, '0')} E${String(form.episodeNumber || 0).padStart(2, '0')}`

@@ -19,6 +19,7 @@ interface MediaItem {
 }
 
 const MediaListView: React.FC = () => {
+    const API_URL = import.meta.env.VITE_API_BASE_URL;
     const [selectedListType, setSelectedListType] = useState<ListMediaType>('series');
     const [mediaList, setMediaList] = useState<MediaItem[]>([]);
     const [loadingList, setLoadingList] = useState(false);
@@ -48,7 +49,7 @@ const MediaListView: React.FC = () => {
         setMediaList([]);
         setSearchTerm("");
         try {
-            const response = await axios.get(`http://localhost:5000/get-media/${mediaType}`);
+            const response = await axios.get(`${API_URL}/get-media/${mediaType}`);
             const typedData = (response.data.data || []).map((item: any) => ({ ...item, media_type_key: mediaType }));
             setMediaList(typedData);
         } catch (err: any) {

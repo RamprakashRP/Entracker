@@ -16,6 +16,7 @@ interface EditModalProps {
 }
 
 export const EditModal: React.FC<EditModalProps> = ({ item, onClose, onUpdate }) => {
+  const API_URL = import.meta.env.VITE_API_BASE_URL;
   const isSeries = item.media_type_key === 'series' || item.media_type_key === 'anime';
   const nameKey = isSeries ? `${item.media_type_key}_name` : 'movies_name';
 
@@ -50,7 +51,7 @@ export const EditModal: React.FC<EditModalProps> = ({ item, onClose, onUpdate })
         name: name,
       };
 
-      await axios.put(`http://localhost:5000/update-media`, payload);
+      await axios.put(`${API_URL}/update-media`, payload);
       onUpdate();
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to update.");
@@ -69,7 +70,7 @@ export const EditModal: React.FC<EditModalProps> = ({ item, onClose, onUpdate })
               watched: newStatus,
               name: name
            };
-           await axios.put(`http://localhost:5000/update-media`, payload);
+           await axios.put(`${API_URL}/update-media`, payload);
            onUpdate();
       } catch (err: any) {
           setError(err.response?.data?.error || "Failed to update status.");
