@@ -8,9 +8,6 @@ import { MediaDetailsModal } from './MediaDetailsModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import DotGrid from './DotGrid';
 
-// This is the base URL for all API calls
-const API_URL = import.meta.env.VITE_API_BASE_URL;
-
 type MediaType = "series" | "movie" | "anime" | "anime_movie" | "";
 
 const mediaLabels: Record<MediaType, string> = {
@@ -83,6 +80,8 @@ const MediaDropdown: React.FC<MediaDropdownProps> = ({ options, selectedOption, 
 };
 
 export default function App() {
+    const API_URL = import.meta.env.VITE_API_BASE_URL;
+    
     const [form, setForm] = useState(initialForm);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<{ message: string; details?: any } | null>(null);
@@ -90,12 +89,15 @@ export default function App() {
     const [currentView, setCurrentView] = useState<'add' | 'list'>('add');
     const [allMediaData, setAllMediaData] = useState<FetchedMediaItem[]>([]);
     const [suggestions, setSuggestions] = useState<FetchedMediaItem[]>([]);
-    const [selectedForUpdate] = useState<FetchedMediaItem | null>(null);
+    //const [selectedForUpdate, setSelectedForUpdate] = useState<FetchedMediaItem | null>(null);
     
+    const [modalState, setModalState] = useState<{
+        isOpen: boolean; title: string; message: string;
+        confirmText: string; onConfirm: () => void;
+    }>({ isOpen: false, title: '', message: '', confirmText: 'Yes', onConfirm: () => {} });
     const [disambiguation, setDisambiguation] = useState<{ isOpen: boolean; results: TMDBResult[]; isWatched: boolean }>({ isOpen: false, results: [], isWatched: false });
     const [detailsItem, setDetailsItem] = useState<{ name: string; type: string } | null>(null);
-    const [modalState, setModalState] = useState<{ isOpen: boolean; title: string; message: string; confirmText: string; onConfirm: () => void; }>({ isOpen: false, title: '', message: '', confirmText: 'Yes', onConfirm: () => {} });
-    
+
     const fetchAllMediaData = useCallback(async () => {
         try {
             const types: MediaType[] = ["series", "movie", "anime", "anime_movie"];
@@ -107,26 +109,10 @@ export default function App() {
             }
             setAllMediaData(allData);
         } catch (err) { console.error("Failed to fetch media data:", err); }
-    }, [API_URL]);
+    }, []);
 
     useEffect(() => { fetchAllMediaData(); }, [fetchAllMediaData]);
     
-    const updateToWatched = async (rowIndex: number) => {
-        setLoading(true);
-        try {
-            await axios.put(`${API_URL}/update-media`, {
-                rowIndex: rowIndex, mediaType: form.mediaType, watched: 'True',
-            });
-            setResult({ message: `"${form.mediaName}" updated to "Watched"!` });
-            await fetchAllMediaData();
-            setForm(initialForm);
-        } catch (err: any) {
-            setError(err.response?.data?.error || "Update failed.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const handleFormSubmit = async (isWatched: boolean) => {
         if (!form.mediaType || !form.mediaName) { setError("Please select a media type and enter a name."); return; }
         setLoading(true);
@@ -134,26 +120,25 @@ export default function App() {
         setResult(null);
 
         try {
-            const checkRes = await axios.get(`${API_URL}/api/check-duplicate`, {
-                params: { mediaType: form.mediaType, name: form.mediaName }
-            });
+            // First, check for local exact duplicates to avoid unnecessary API calls
+            const nameKey = form.mediaType.includes('movie') ? 'movies_name' : `${form.mediaType}_name`;
+            const localDuplicate = allMediaData.find(item => item[nameKey]?.toLowerCase() === form.mediaName.toLowerCase());
 
-            if (checkRes.data.isDuplicate) {
-                const duplicateData = checkRes.data.data;
-                if (duplicateData.watched === 'False' && isWatched) {
+            if(localDuplicate) {
+                 if (localDuplicate.watched === 'False' && isWatched) {
                     setModalState({
                         isOpen: true, title: "Item in Watchlist",
-                        message: `"${form.mediaName}" is already in your watchlist. Do you want to mark it as "Watched"?`,
+                        message: `"${form.mediaName}" is in your watchlist. Update it to "Watched"?`,
                         confirmText: "Yes, Update",
                         onConfirm: () => {
                             setModalState({ ...modalState, isOpen: false });
-                            updateToWatched(duplicateData.row_index);
+                            updateToWatched(localDuplicate.row_index);
                         }
                     });
                 } else {
                     setModalState({
                         isOpen: true, title: "Duplicate Entry",
-                        message: `You have already added "${form.mediaName}". Please check your list.`,
+                        message: `You've already added "${form.mediaName}".`,
                         confirmText: "OK",
                         onConfirm: () => setModalState({ ...modalState, isOpen: false }),
                     });
@@ -162,6 +147,7 @@ export default function App() {
                 return;
             }
 
+            // If no exact local duplicate, proceed to TMDB search for disambiguation
             const searchRes = await axios.get(`${API_URL}/api/search-tmdb`, {
                 params: { mediaType: form.mediaType, name: form.mediaName }
             });
@@ -181,13 +167,28 @@ export default function App() {
         }
     };
 
+    const updateToWatched = async (rowIndex: number) => {
+        setLoading(true);
+        try {
+            await axios.put(`${API_URL}/update-media`, {
+                rowIndex: rowIndex, mediaType: form.mediaType, watched: 'True',
+            });
+            setResult({ message: `"${form.mediaName}" updated to "Watched"!` });
+            await fetchAllMediaData();
+            setForm(initialForm);
+        } catch (err: any) {
+            setError(err.response?.data?.error || "Update failed.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const addMediaById = async (tmdbId: number, isWatched: boolean) => {
         setDisambiguation({ isOpen: false, results: [], isWatched: false });
         setLoading(true);
         try {
             const response = await axios.post(`${API_URL}/add-media`, {
-                mediaType: form.mediaType,
-                tmdbId: tmdbId,
+                mediaType: form.mediaType, tmdbId: tmdbId,
                 watched: isWatched ? 'True' : 'False',
                 watchedTill: `S${String(form.seasonNumber || 1).padStart(2, '0')} E${String(form.episodeNumber || 0).padStart(2, '0')}`
             });
@@ -204,7 +205,7 @@ export default function App() {
     const viewDetails = (item: TMDBResult) => {
         setDetailsItem({ name: item.name, type: form.mediaType });
     };
-    
+
     const updateNumberInput = (name: 'seasonNumber' | 'episodeNumber', delta: number) => {
         setForm(prev => {
             const currentValue = parseInt(prev[name] || '0', 10);
@@ -214,7 +215,7 @@ export default function App() {
             return { ...prev, [name]: newValue.toString() };
         });
     };
-    
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement> | MediaType) => {
         if (typeof e === 'string') {
             setSuggestions([]);
@@ -234,9 +235,10 @@ export default function App() {
     };
 
     const handleSuggestionClick = (item: FetchedMediaItem) => {
+        const nameKey = item.media_type_key.includes('movie') ? 'movies_name' : `${item.media_type_key}_name`;
         setForm({
             mediaType: item.media_type_key,
-            mediaName: (item.series_name || item.movies_name || item.anime_name || '') as string,
+            mediaName: item[nameKey] || '',
             seasonNumber: (item.watched_till && !item.media_type_key.includes('movie')) ? item.watched_till.match(/S(\d+)/)?.[1]?.replace(/^0+/, '') || '' : '',
             episodeNumber: (item.watched_till && !item.media_type_key.includes('movie')) ? item.watched_till.match(/E(\d+)/)?.[1]?.replace(/^0+/, '') || '' : '',
             watchedTill: item.watched_till || '',
@@ -255,22 +257,40 @@ export default function App() {
             <div className="background-container">
                 <DotGrid 
                     dotSize={2}
-                    gap={15}
-                    baseColor="#FF69B4"
-                    activeColor="#00FFFF"
-                    proximity={120}
-                    shockRadius={260}
-                    shockStrength={10}
+                    gap={10}
+                    baseColor="#ff0080"
+                    activeColor="#00ffe5"
+                    proximity={80}
+                    shockRadius={100}
+                    shockStrength={20}
                     resistance={250}
-                    returnDuration={0.7}
+                    returnDuration={0.5}
                 />
             </div>
             
             <img src="/RP.png" alt="RP Logo" className="app-logo" />
             
-            <ConfirmationModal isOpen={modalState.isOpen} title={modalState.title} message={modalState.message} onConfirm={modalState.onConfirm} onCancel={() => setModalState({ ...modalState, isOpen: false })} confirmText={modalState.confirmText} />
-            {disambiguation.isOpen && <DisambiguationModal results={disambiguation.results} onSelect={(result) => addMediaById(result.id, disambiguation.isWatched)} onViewDetails={viewDetails} onClose={() => setDisambiguation({ ...disambiguation, isOpen: false })} />}
-            {detailsItem && <MediaDetailsModal mediaName={detailsItem.name} mediaType={detailsItem.type} onClose={() => setDetailsItem(null)} />}
+            {disambiguation.isOpen && (
+                <DisambiguationModal
+                    results={disambiguation.results}
+                    onSelect={(result) => addMediaById(result.id, disambiguation.isWatched)}
+                    onViewDetails={viewDetails}
+                    onClose={() => setDisambiguation({ ...disambiguation, isOpen: false })}
+                />
+            )}
+            {detailsItem && (
+                <MediaDetailsModal
+                    mediaName={detailsItem.name}
+                    mediaType={detailsItem.type}
+                    onClose={() => setDetailsItem(null)}
+                />
+            )}
+            <ConfirmationModal 
+                isOpen={modalState.isOpen} title={modalState.title}
+                message={modalState.message} onConfirm={modalState.onConfirm}
+                onCancel={() => setModalState({ ...modalState, isOpen: false })}
+                confirmText={modalState.confirmText}
+            />
 
             <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
@@ -295,7 +315,11 @@ export default function App() {
                                         <AnimatePresence>
                                             {suggestions.length > 0 && (
                                                 <motion.ul className="suggestions-list">
-                                                    {suggestions.map((item) => ( <li key={item.row_index} onClick={() => handleSuggestionClick(item)}>{item.series_name || item.movies_name || item.anime_name}</li> ))}
+                                                    {suggestions.map((item) => (
+                                                        <li key={item.row_index} onClick={() => handleSuggestionClick(item)}>
+                                                            {item.series_name || item.movies_name || item.anime_name}
+                                                        </li>
+                                                    ))}
                                                 </motion.ul>
                                             )}
                                         </AnimatePresence>
@@ -323,13 +347,11 @@ export default function App() {
                                 </div>
                                 <div className="submit-button-group">
                                     <motion.button type="submit" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button">
-                                        {loading ? "Processing..." : (selectedForUpdate ? "Update Tracker" : "Add to Tracker")}
+                                        {loading ? "Processing..." : "Add to Tracker"}
                                     </motion.button>
-                                    {!selectedForUpdate && (
-                                        <motion.button type="button" onClick={() => handleFormSubmit(false)} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button watchlist">
-                                            {loading ? "Processing..." : "Add to Watchlist"}
-                                        </motion.button>
-                                    )}
+                                    <motion.button type="button" onClick={() => handleFormSubmit(false)} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button watchlist">
+                                        {loading ? "Processing..." : "Add to Watchlist"}
+                                    </motion.button>
                                 </div>
                             </form>
                         </motion.div>
