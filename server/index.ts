@@ -26,9 +26,26 @@ const SHEET_CONFIG: { [key: string]: { sheetName: string; range: string; columns
 };
 
 const getSheetsClient = async () => {
-    const auth = new google.auth.GoogleAuth({ keyFile: 'credentials.json', scopes: 'https://www.googleapis.com/auth/spreadsheets' });
-    const client = await auth.getClient();
-    return google.sheets({ version: 'v4', auth: client as Auth.OAuth2Client });
+    // This checks if we are running on Vercel (where the variable exists)
+    if (process.env.GOOGLE_CREDENTIALS_BASE64) {
+        const decodedCredentials = Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString('utf-8');
+        const credentials = JSON.parse(decodedCredentials);
+        const auth = new google.auth.GoogleAuth({
+            credentials,
+            scopes: 'https://www.googleapis.com/auth/spreadsheets',
+        });
+        const client = await auth.getClient();
+        return google.sheets({ version: 'v4', auth: client as Auth.OAuth2Client });
+    } 
+    // This is for when you run the app on your local computer
+    else {
+        const auth = new google.auth.GoogleAuth({
+            keyFile: 'credentials.json',
+            scopes: 'https://www.googleapis.com/auth/spreadsheets',
+        });
+        const client = await auth.getClient();
+        return google.sheets({ version: 'v4', auth: client as Auth.OAuth2Client });
+    }
 };
 
 const getPromptForMediaType = (mediaType: string, mediaName: string) => {
