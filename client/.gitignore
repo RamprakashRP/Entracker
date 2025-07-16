@@ -33,3 +33,5 @@ node_modules/
 # TypeScript compilation output
 dist/
 
+.env.local
+.env.production

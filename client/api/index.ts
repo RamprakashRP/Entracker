@@ -26,7 +26,7 @@ const SHEET_CONFIG: { [key: string]: { sheetName: string; range: string; columns
 };
 
 const getSheetsClient = async () => {
-    // This checks if we are running on Vercel (where the variable exists)
+    // This logic handles both Vercel deployment and local development
     if (process.env.GOOGLE_CREDENTIALS_BASE64) {
         const decodedCredentials = Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString('utf-8');
         const credentials = JSON.parse(decodedCredentials);
@@ -36,11 +36,10 @@ const getSheetsClient = async () => {
         });
         const client = await auth.getClient();
         return google.sheets({ version: 'v4', auth: client as Auth.OAuth2Client });
-    } 
-    // This is for when you run the app on your local computer
-    else {
+    } else {
+        const keyFilePath = path.join(__dirname, 'credentials.json');
         const auth = new google.auth.GoogleAuth({
-            keyFile: 'credentials.json',
+            keyFile: keyFilePath,
             scopes: 'https://www.googleapis.com/auth/spreadsheets',
         });
         const client = await auth.getClient();
