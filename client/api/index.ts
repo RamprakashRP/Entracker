@@ -2,9 +2,10 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { google, Auth } from 'googleapis';
+import { google, Auth, sheets_v4 } from 'googleapis';
 import OpenAI from 'openai';
 import axios from 'axios';
+import path from 'path';
 
 dotenv.config();
 
@@ -26,7 +27,6 @@ const SHEET_CONFIG: { [key: string]: { sheetName: string; range: string; columns
 };
 
 const getSheetsClient = async () => {
-    // This logic handles both Vercel deployment and local development
     if (process.env.GOOGLE_CREDENTIALS_BASE64) {
         const decodedCredentials = Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString('utf-8');
         const credentials = JSON.parse(decodedCredentials);
@@ -304,42 +304,46 @@ app.put('/update-media', async (req, res) => {
         const sheetConfig = SHEET_CONFIG[mediaType];
         if (!sheetConfig) throw new Error(`Invalid mediaType: ${mediaType}`);
 
-        const updates = [];
+        const updateRequests: sheets_v4.Params$Resource$Spreadsheets$Values$Update[] = [];
+
         const nameColLetter = String.fromCharCode('A'.charCodeAt(0) + sheetConfig.columns.indexOf(sheetConfig.columns[0]));
         const watchedColLetter = String.fromCharCode('A'.charCodeAt(0) + sheetConfig.columns.indexOf('watched'));
         const watchedTillColLetter = String.fromCharCode('A'.charCodeAt(0) + sheetConfig.columns.indexOf('watched_till'));
 
         if (name) {
-            updates.push(sheets.spreadsheets.values.update({
+            updateRequests.push({
                 spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${nameColLetter}${rowIndex}`,
                 valueInputOption: 'USER_ENTERED', requestBody: { values: [[name]] }
-            }));
+            });
         }
         if (watched) {
-             updates.push(sheets.spreadsheets.values.update({
+             updateRequests.push({
                 spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${watchedColLetter}${rowIndex}`,
                 valueInputOption: 'USER_ENTERED', requestBody: { values: [[watched]] }
-            }));
+            });
              if(mediaType.includes('movie')) {
-                 updates.push(sheets.spreadsheets.values.update({
+                 updateRequests.push({
                     spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${watchedTillColLetter}${rowIndex}`,
                     valueInputOption: 'USER_ENTERED', requestBody: { values: [[watched === 'True' ? 'Watched' : 'Not Watched']] }
-                }));
+                });
              }
         }
         if (watchedTill && (mediaType === 'series' || mediaType === 'anime')) {
-            updates.push(sheets.spreadsheets.values.update({
+            updateRequests.push({
                 spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${watchedTillColLetter}${rowIndex}`,
                 valueInputOption: 'USER_ENTERED', requestBody: { values: [[watchedTill]] }
-            }));
+            });
         }
+        
+        // Execute all update requests in parallel
+        await Promise.all(updateRequests.map(request => sheets.spreadsheets.values.update(request)));
 
-        await Promise.all(updates);
         res.status(200).json({ message: 'Update successful!' });
+
     } catch (error: any) {
         console.error("Update Error:", error);
         res.status(500).json({ error: 'Failed to update entry.' });
     }
 });
 
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+export default app;
