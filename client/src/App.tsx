@@ -8,6 +8,8 @@ import { MediaDetailsModal } from './MediaDetailsModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import DotGrid from './DotGrid';
 
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 type MediaType = "series" | "movie" | "anime" | "anime_movie" | "";
 
 const mediaLabels: Record<MediaType, string> = {
@@ -80,7 +82,6 @@ const MediaDropdown: React.FC<MediaDropdownProps> = ({ options, selectedOption, 
 };
 
 export default function App() {
-    const API_URL = import.meta.env.VITE_API_BASE_URL;
     
     const [form, setForm] = useState(initialForm);
     const [loading, setLoading] = useState(false);

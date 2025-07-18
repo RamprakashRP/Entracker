@@ -7,6 +7,8 @@ import OpenAI from 'openai';
 import axios from 'axios';
 import path from 'path';
 
+declare const module: any;
+
 dotenv.config();
 
 const app = express();
@@ -28,22 +30,14 @@ const SHEET_CONFIG: { [key: string]: { sheetName: string; range: string; columns
 
 const getSheetsClient = async () => {
     if (process.env.GOOGLE_CREDENTIALS_BASE64) {
-        const decodedCredentials = Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString('utf-8');
-        const credentials = JSON.parse(decodedCredentials);
-        const auth = new google.auth.GoogleAuth({
-            credentials,
-            scopes: 'https://www.googleapis.com/auth/spreadsheets',
-        });
-        const client = await auth.getClient();
-        return google.sheets({ version: 'v4', auth: client as Auth.OAuth2Client });
+        const decoded = Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString('utf-8');
+        const credentials = JSON.parse(decoded);
+        const auth = new google.auth.GoogleAuth({ credentials, scopes: 'https://www.googleapis.com/auth/spreadsheets' });
+        return google.sheets({ version: 'v4', auth: await auth.getClient() as Auth.OAuth2Client });
     } else {
         const keyFilePath = path.join(__dirname, 'credentials.json');
-        const auth = new google.auth.GoogleAuth({
-            keyFile: keyFilePath,
-            scopes: 'https://www.googleapis.com/auth/spreadsheets',
-        });
-        const client = await auth.getClient();
-        return google.sheets({ version: 'v4', auth: client as Auth.OAuth2Client });
+        const auth = new google.auth.GoogleAuth({ keyFile: keyFilePath, scopes: 'https://www.googleapis.com/auth/spreadsheets' });
+        return google.sheets({ version: 'v4', auth: await auth.getClient() as Auth.OAuth2Client });
     }
 };
 
@@ -345,5 +339,13 @@ app.put('/update-media', async (req, res) => {
         res.status(500).json({ error: 'Failed to update entry.' });
     }
 });
+
+// Vercel handles the listening part automatically in production.
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log(`Server is running for local development at http://localhost:${PORT}`);
+    });
+}
 
 export default app;
