@@ -1,3 +1,4 @@
 server/credentials.json.env
 server/.env
 server/credentials.json
+.vercel

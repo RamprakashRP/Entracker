@@ -182,9 +182,7 @@ app.get('/get-media/:mediaType', async (req, res) => {
         } else {
             res.status(200).json({ data: [] });
         }
-    } catch (error: any) {
-        res.status(500).json({ error: 'Failed to fetch data.' });
-    }
+    } catch (error: any) { res.status(500).json({ error: 'Failed to fetch data.' }); }
 });
 
 app.get('/api/franchises/:mediaType', async (req, res) => {
