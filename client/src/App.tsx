@@ -8,7 +8,7 @@ import { MediaDetailsModal } from './MediaDetailsModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import DotGrid from './DotGrid';
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 type MediaType = "series" | "movie" | "anime" | "anime_movie" | "";
 

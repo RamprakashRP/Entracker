@@ -84,7 +84,7 @@ app.get('/api/search-tmdb', async (req: Request, res: Response) => {
     }
 });
 
-app.post('/add-media', async (req: Request, res: Response) => {
+app.post('/api/add-media', async (req: Request, res: Response) => {
     const { mediaType, tmdbId, watched, watchedTill } = req.body;
     if (!mediaType || !tmdbId || watched === undefined) {
         return res.status(400).json({ error: 'mediaType, tmdbId, and watched are required.' });
@@ -163,7 +163,7 @@ app.post('/add-media', async (req: Request, res: Response) => {
     }
 });
 
-app.get('/get-media/:mediaType', async (req, res) => {
+app.get('/api/get-media/:mediaType', async (req, res) => {
     const { mediaType } = req.params;
     const config = SHEET_CONFIG[mediaType];
     if (!config) { return res.status(400).json({ error: 'Invalid media type.' }); }
@@ -287,7 +287,7 @@ app.get('/api/details/:mediaType/:name', async (req, res) => {
     }
 });
 
-app.put('/update-media', async (req, res) => {
+app.put('/api/update-media', async (req, res) => {
     const { rowIndex, mediaType, name, watched, watchedTill } = req.body;
     if (!rowIndex || !mediaType) { return res.status(400).json({ error: 'rowIndex and mediaType are required.' }); }
 
