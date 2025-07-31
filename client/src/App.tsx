@@ -105,7 +105,7 @@ export default function App() {
             let allData: FetchedMediaItem[] = [];
             for (const type of types) {
                 if (!type) continue;
-                const response = await axios.get(`${API_URL}/get-media/${type}`);
+                const response = await axios.get(`/api/get-media/${type}`);
                 allData = allData.concat((response.data.data || []).map((item: any) => ({ ...item, media_type_key: type })));
             }
             setAllMediaData(allData);
@@ -149,7 +149,7 @@ export default function App() {
             }
 
             // If no exact local duplicate, proceed to TMDB search for disambiguation
-            const searchRes = await axios.get(`${API_URL}/api/search-tmdb`, {
+            const searchRes = await axios.get(`/api/search-tmdb`, {
                 params: { mediaType: form.mediaType, name: form.mediaName }
             });
             
@@ -171,7 +171,7 @@ export default function App() {
     const updateToWatched = async (rowIndex: number) => {
         setLoading(true);
         try {
-            await axios.put(`${API_URL}/update-media`, {
+            await axios.put(`/api/update-media`, {
                 rowIndex: rowIndex, mediaType: form.mediaType, watched: 'True',
             });
             setResult({ message: `"${form.mediaName}" updated to "Watched"!` });
@@ -188,7 +188,7 @@ export default function App() {
         setDisambiguation({ isOpen: false, results: [], isWatched: false });
         setLoading(true);
         try {
-            const response = await axios.post(`${API_URL}/add-media`, {
+            const response = await axios.post(`/api/add-media`, {
                 mediaType: form.mediaType, tmdbId: tmdbId,
                 watched: isWatched ? 'True' : 'False',
                 watchedTill: `S${String(form.seasonNumber || 1).padStart(2, '0')} E${String(form.episodeNumber || 0).padStart(2, '0')}`
