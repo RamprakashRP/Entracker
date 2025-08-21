@@ -78,6 +78,7 @@ app.get('/api/search-tmdb', (req, res) => __awaiter(void 0, void 0, void 0, func
         res.status(200).json({ data: results });
     }
     catch (error) {
+        console.error('Error searching TMDB:', error);
         res.status(500).json({ error: 'Failed to search TMDB.' });
     }
 }));
@@ -183,7 +184,8 @@ app.get('/get-media/:mediaType', (req, res) => __awaiter(void 0, void 0, void 0,
         }
     }
     catch (error) {
-        res.status(500).json({ error: 'Failed to fetch data.' });
+        console.error(`Error fetching media for ${mediaType}:`, error);
+        res.status(500).json({ error: 'Failed to fetch data from sheet.' });
     }
 }));
 app.get('/api/franchises/:mediaType', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -209,6 +211,7 @@ app.get('/api/franchises/:mediaType', (req, res) => __awaiter(void 0, void 0, vo
         }
     }
     catch (error) {
+        console.error(`Error fetching franchises for ${mediaType}:`, error);
         res.status(500).json({ error: 'Failed to fetch franchises.' });
     }
 }));
@@ -282,6 +285,7 @@ app.get('/api/details/:mediaType/:name', (req, res) => __awaiter(void 0, void 0,
         res.status(200).json({ data: formattedData });
     }
     catch (error) {
+        console.error(`Error fetching details for ${name}:`, error);
         res.status(500).json({ error: 'Failed to fetch details from TMDB.' });
     }
 }));
