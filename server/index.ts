@@ -15,7 +15,7 @@ app.use(express.json());
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const PORT = process.env.PORT || 5000;
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
-const TMDB_BASE_URL = process.env.USE_TMDB_PROXY === 'true' ? 'https://tmdb.tprojects.workers.dev' : 'https://api.themoviedb.org';
+const TMDB_BASE_URL = 'https://api.themoviedb.org';
 
 const azureOpenAI = new AzureOpenAI({ 
     endpoint: process.env.AZURE_OPENAI_ENDPOINT,
@@ -87,6 +87,17 @@ app.get('/api/search-tmdb', async (req: Request, res: Response) => {
         res.status(200).json({ data: results });
     } catch (error) {
         res.status(500).json({ error: 'Failed to search TMDB.' });
+    }
+});
+
+app.get('/api/image-proxy', async (req: Request, res: Response) => {
+    const imageUrl = req.query.url as string;
+    if (!imageUrl) return res.status(400).send('URL required');
+    try {
+        const response = await axios.get(imageUrl, { responseType: 'stream' });
+        response.data.pipe(res);
+    } catch (error) {
+        res.status(500).send('Failed to fetch image');
     }
 });
 
@@ -263,7 +274,7 @@ app.get('/api/franchise/:mediaType/:name', async (req: Request, res: Response) =
             const detailsResponse = await axios.get(collectionUrl);
             collectionDetails = {
                 overview: detailsResponse.data.overview,
-                poster_path: detailsResponse.data.poster_path ? `https://image.tmdb.org/t/p/w500${detailsResponse.data.poster_path}` : null,
+                poster_path: detailsResponse.data.poster_path ? `/api/image-proxy?url=https://image.tmdb.org/t/p/w500${detailsResponse.data.poster_path}` : null,
                 name: detailsResponse.data.name
             };
         }
@@ -293,7 +304,7 @@ app.get('/api/details/:mediaType/:name', async (req, res) => {
         const details = detailsResponse.data;
         const formattedData = {
             name: details.name || details.title, overview: details.overview,
-            poster_path: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : null,
+            poster_path: details.poster_path ? `/api/image-proxy?url=https://image.tmdb.org/t/p/w500${details.poster_path}` : null,
             vote_average: details.vote_average, genres: details.genres.map((g: any) => g.name),
             providers: details['watch/providers']?.results?.US?.flatrate || details['watch/providers']?.results?.IN?.flatrate || [],
         };

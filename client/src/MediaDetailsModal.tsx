@@ -58,7 +58,7 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName,
                     {details && (
                         <>
                             <div className="details-header">
-                                {details.poster_path && <img src={details.poster_path} alt={details.name} className="details-poster" />}
+                                {details.poster_path && <img src={details.poster_path.startsWith('/') ? `${API_BASE}${details.poster_path}` : details.poster_path} alt={details.name} className="details-poster" />}
                                 <div className="details-header-info">
                                     <h3>{details.name}</h3>
                                     <div className="details-rating">⭐ {details.vote_average.toFixed(1)} / 10</div>
@@ -74,7 +74,7 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName,
                                     <h4>Available on:</h4>
                                     <div className="provider-logos">
                                         {details.providers.map(p => (
-                                            <img key={p.provider_name} src={`https://image.tmdb.org/t/p/original${p.logo_path}`} alt={p.provider_name} title={p.provider_name} className="provider-logo" />
+                                            <img key={p.provider_name} src={`${API_BASE}/api/image-proxy?url=https://image.tmdb.org/t/p/original${p.logo_path}`} alt={p.provider_name} title={p.provider_name} className="provider-logo" />
                                         ))}
                                     </div>
                                 </div>

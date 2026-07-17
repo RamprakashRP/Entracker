@@ -91,7 +91,7 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
             <div className="franchise-layout-grid">
                 <div className="franchise-info-panel">
                     {details?.poster_path ? (
-                        <img src={details.poster_path} alt={details.name} className="franchise-poster"/>
+                        <img src={details.poster_path.startsWith('/') ? `${API_BASE}${details.poster_path}` : details.poster_path} alt={details.name} className="franchise-poster"/>
                     ) : <div className="franchise-poster-placeholder">No Image</div>}
                     <h4>{details?.name || franchiseName}</h4>
                     <p className="franchise-overview">{details?.overview || "No overview available."}</p>
