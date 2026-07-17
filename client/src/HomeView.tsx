@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { MediaCard } from './components/MediaCard';
@@ -68,7 +68,8 @@ export function HomeView() {
                         {items.map((item, idx) => (
                             <div key={`${item.media_type_key}-${item.row_index}-${idx}`} className="carousel-item">
                                 <MediaCard 
-                                    media={item} 
+                                    item={item} 
+                                    selectedListType={item.media_type_key}
                                     onClick={() => {
                                         const nameKey = item.media_type_key.includes('movie') ? 'movies_name' : `${item.media_type_key}_name`;
                                         setDetailsItem({ name: item[nameKey], type: item.media_type_key });

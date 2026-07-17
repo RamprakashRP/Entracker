@@ -37,10 +37,10 @@ const MediaListView: React.FC = () => {
     const [searchSuggestions, setSearchSuggestions] = useState<MediaItem[]>([]);
     const searchContainerRef = useRef<HTMLDivElement>(null);
     
-    const [selectedFranchise, setSelectedFranchise] = useState<string | null>(null);
+    const [selectedFranchise, setSelectedFranchise] = useState<{name: string, type: 'movie' | 'anime_movie'} | null>(null);
     const [detailsItem, setDetailsItem] = useState<MediaItem | null>(null);
     const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
-    const [cameFromFranchise, setCameFromFranchise] = useState<string | null>(null);
+    const [cameFromFranchise, setCameFromFranchise] = useState<{name: string, type: 'movie' | 'anime_movie'} | null>(null);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -143,9 +143,9 @@ const MediaListView: React.FC = () => {
         return result;
     }, [mediaList, searchTerm, selectedCategories, selectedStatuses, sortOption]);
 
-    const handleFranchiseClick = (franchiseName: string) => {
+    const handleFranchiseClick = (franchiseName: string, type: 'movie' | 'anime_movie') => {
         if (franchiseName && franchiseName.toLowerCase() !== 'standalone') {
-            setSelectedFranchise(franchiseName);
+            setSelectedFranchise({name: franchiseName, type});
         }
     };
 
@@ -278,7 +278,7 @@ const MediaListView: React.FC = () => {
                                         selectedListType={item.media_type_key} 
                                         onClick={() => { setCameFromFranchise(null); setDetailsItem(item); }}
                                         onEdit={(e) => { e.stopPropagation(); setEditingItem(item); }}
-                                        onFranchiseClick={(franchise, e) => { e.stopPropagation(); handleFranchiseClick(franchise); }}
+                                        onFranchiseClick={(franchise, e) => { e.stopPropagation(); handleFranchiseClick(franchise, item.media_type_key as 'movie'|'anime_movie'); }}
                                     />
                                 ))}
                             </motion.div>
@@ -316,12 +316,12 @@ const MediaListView: React.FC = () => {
                                     })}
                                 </motion.div>
                             )
-                        )}
+                        }
                     </AnimatePresence>
                 </div>
             </motion.div>
             
-            {selectedFranchise && <FranchiseModal franchiseName={selectedFranchise} mediaType={selectedListType as 'movie' | 'anime_movie'} onClose={() => setSelectedFranchise(null)} onMovieSelect={handleMovieSelectFromModal} />}
+            {selectedFranchise && <FranchiseModal franchiseName={selectedFranchise.name} mediaType={selectedFranchise.type} onClose={() => setSelectedFranchise(null)} onMovieSelect={handleMovieSelectFromModal} />}
             {detailsItem && <MediaDetailsModal mediaName={detailsItem.series_name || detailsItem.movies_name || detailsItem.anime_name} mediaType={detailsItem.media_type_key} onClose={handleDetailsClose} />}
             {editingItem && <EditModal item={editingItem} onClose={() => setEditingItem(null)} onUpdate={handleUpdate} />}
         </>

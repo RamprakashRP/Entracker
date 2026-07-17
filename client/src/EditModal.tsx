@@ -27,13 +27,7 @@ export const EditModal: React.FC<EditModalProps> = ({ item, onClose, onUpdate })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const updateNumberInput = (field: 'season' | 'episode', delta: number) => {
-      if(field === 'season') {
-          setSeason(prev => Math.max(1, prev + delta));
-      } else {
-          setEpisode(prev => Math.max(0, prev + delta));
-      }
-  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
