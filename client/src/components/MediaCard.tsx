@@ -2,7 +2,34 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : '');
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+class PosterQueue {
+    queue: { task: () => Promise<any>, resolve: (value: any) => void, reject: (reason?: any) => void }[] = [];
+    isProcessing = false;
+    
+    add(task: () => Promise<any>) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ task, resolve, reject });
+            this.process();
+        });
+    }
+    
+    async process() {
+        if (this.isProcessing || this.queue.length === 0) return;
+        this.isProcessing = true;
+        const { task, resolve, reject } = this.queue.shift()!;
+        try {
+            const res = await task();
+            resolve(res);
+        } catch (e) {
+            reject(e);
+        }
+        this.isProcessing = false;
+        setTimeout(() => this.process(), 150); 
+    }
+}
+const posterQueue = new PosterQueue();
 
 interface MediaItem {
     row_index: number;
@@ -39,13 +66,21 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
     }, []);
 
     useEffect(() => {
+        let objectUrl: string | null = null;
+        let isMounted = true;
         if (isVisible && !posterPath) {
             const fetchPoster = async () => {
                 try {
                     const name = item.series_name || item.movies_name || item.anime_name;
-                    const res = await axios.get(`${API_BASE}/api/poster/${item.media_type_key}/${encodeURIComponent(name)}`);
-                    if (res.data.poster_path) {
-                        setPosterPath(res.data.poster_path);
+                    const res = await posterQueue.add(() => axios.get(`${API_BASE}/api/poster/${item.media_type_key}/${encodeURIComponent(name)}`)) as any;
+                    
+                    if (isMounted && res.data.poster_path) {
+                        // Queue the proxy image fetch to prevent concurrent Vercel timeouts
+                        const imgRes = await posterQueue.add(() => axios.get(`${API_BASE}${res.data.poster_path}`, { responseType: 'blob' })) as any;
+                        if (isMounted) {
+                            objectUrl = URL.createObjectURL(imgRes.data);
+                            setPosterPath(objectUrl);
+                        }
                     }
                 } catch (e) {
                     console.error("Failed to load poster", e);
@@ -53,6 +88,10 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
             };
             fetchPoster();
         }
+        return () => {
+            isMounted = false;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
     }, [isVisible, item, posterPath]);
 
     const title = item.series_name || item.movies_name || item.anime_name;
@@ -61,31 +100,35 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
     return (
         <motion.div 
             ref={cardRef}
-            className="media-card"
+            className="media-card" 
             variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
             onClick={onClick}
         >
-            <div className="media-poster-container">
-                {isVisible && posterPath ? (
-                    <img src={`${API_BASE}${posterPath}`} alt={title} className="media-poster" />
-                ) : (
-                    <div className="poster-placeholder">
-                        <span>{isVisible ? 'Loading Poster...' : ''}</span>
+            <div className="media-card-header" style={{ 
+                backgroundImage: posterPath ? `url(${posterPath})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                height: posterPath ? '200px' : 'auto',
+                position: 'relative'
+            }}>
+                {!posterPath && isVisible && (
+                    <div className="poster-placeholder" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
+                        Loading Banner...
                     </div>
                 )}
                 
-                <div className="media-poster-overlay">
-                    <h3 className="media-title">{title}</h3>
-                    <button className="media-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(e); }} title="Edit Media">
+                <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', padding: '1rem', background: posterPath ? 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)' : 'none' }}>
+                    <h3 className="media-title" style={{ textShadow: posterPath ? '0 2px 4px rgba(0,0,0,0.8)' : 'none', margin: 0 }}>{title}</h3>
+                    <button className="media-edit-btn" onClick={(e) => onEdit && onEdit(e)} title="Edit Media" style={{ flexShrink: 0, marginLeft: '0.5rem' }}>
                         <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z" /></svg>
                     </button>
                 </div>
-                
-                <div className="media-status-pill">
-                    <span className={`media-status-badge ${isWatched ? 'status-watched' : 'status-unwatched'}`}>
-                        {isWatched ? 'WATCHED' : 'WATCHLIST'}
-                    </span>
-                </div>
+            </div>
+            
+            <div style={{ padding: '0 1rem' }}>
+                <span className={`media-status-badge ${isWatched ? 'status-watched' : 'status-unwatched'}`}>
+                    {isWatched ? 'Watched' : 'Watchlist'}
+                </span>
             </div>
             
             <div className="media-meta">
