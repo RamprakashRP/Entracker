@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 export interface FranchiseMovieItem {
   row_index: number;
   movies_name: string;
@@ -26,7 +28,6 @@ interface FranchiseModalProps {
 }
 
 export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, mediaType, onClose, onMovieSelect }) => {
-  const API_URL = import.meta.env.VITE_API_BASE_URL;
   const [movies, setMovies] = useState<FranchiseMovieItem[]>([]);
   const [details, setDetails] = useState<FranchiseDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,7 +38,7 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(`${API_URL}/api/franchise/${mediaType}/${franchiseName}`);
+        const response = await axios.get(`${API_BASE}/api/franchise/${mediaType}/${franchiseName}`);
         
         const sortedMovies = (response.data.movies || []).sort((a: FranchiseMovieItem, b: FranchiseMovieItem) => {
             const dateA = a.release_date ? new Date(a.release_date) : new Date(0);

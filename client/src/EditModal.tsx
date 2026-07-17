@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 interface MediaItem {
   row_index: number;
   media_type_key: 'series' | 'movie' | 'anime' | 'anime_movie';
@@ -16,7 +18,6 @@ interface EditModalProps {
 }
 
 export const EditModal: React.FC<EditModalProps> = ({ item, onClose, onUpdate }) => {
-  const API_URL = import.meta.env.VITE_API_BASE_URL;
   const isSeries = item.media_type_key === 'series' || item.media_type_key === 'anime';
   const nameKey = isSeries ? `${item.media_type_key}_name` : 'movies_name';
 
@@ -51,7 +52,7 @@ export const EditModal: React.FC<EditModalProps> = ({ item, onClose, onUpdate })
         name: name,
       };
 
-      await axios.put(`${API_URL}/update-media`, payload);
+      await axios.put(`${API_BASE}/update-media`, payload);
       onUpdate();
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to update.");
@@ -70,7 +71,7 @@ export const EditModal: React.FC<EditModalProps> = ({ item, onClose, onUpdate })
               watched: newStatus,
               name: name
            };
-           await axios.put(`${API_URL}/update-media`, payload);
+           await axios.put(`${API_BASE}/update-media`, payload);
            onUpdate();
       } catch (err: any) {
           setError(err.response?.data?.error || "Failed to update status.");

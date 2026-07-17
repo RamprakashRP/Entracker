@@ -6,7 +6,9 @@ import { FranchiseModal, type FranchiseMovieItem } from './FranchiseModal';
 import { MediaDetailsModal } from './MediaDetailsModal';
 import { EditModal } from './EditModal';
 
-type ListMediaType = "series" | "movie" | "anime" | "anime_movie";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+export type ListMediaType = "series" | "movie" | "anime" | "anime_movie";
 
 const listViewLabels: Record<ListMediaType, string> = {
     series: "TV Series", movie: "Movie", anime: "Anime Series", anime_movie: "Anime Movie",
@@ -19,7 +21,6 @@ interface MediaItem {
 }
 
 const MediaListView: React.FC = () => {
-    const API_URL = import.meta.env.VITE_API_BASE_URL;
     const [selectedListType, setSelectedListType] = useState<ListMediaType>('series');
     const [mediaList, setMediaList] = useState<MediaItem[]>([]);
     const [loadingList, setLoadingList] = useState(false);
@@ -49,7 +50,7 @@ const MediaListView: React.FC = () => {
         setMediaList([]);
         setSearchTerm("");
         try {
-            const response = await axios.get(`${API_URL}/get-media/${mediaType}`);
+            const response = await axios.get(`${API_BASE}/get-media/${mediaType}`);
             const typedData = (response.data.data || []).map((item: any) => ({ ...item, media_type_key: mediaType }));
             setMediaList(typedData);
         } catch (err: any) {

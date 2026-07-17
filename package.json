@@ -1,5 +1,14 @@
 {
+  "name": "entracker",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "cd server && npm install && npm run build",
+    "start": "cd server && npm start"
+  },
   "dependencies": {
     "axios": "^1.10.0"
+  },
+  "engines": {
+    "node": "20.x"
   }
 }
