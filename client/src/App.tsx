@@ -9,7 +9,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 import DotGrid from './DotGrid';
 import { HomeView } from './HomeView';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:5000';
 
 type MediaType = "series" | "movie" | "anime" | "anime_movie" | "";
 
@@ -54,7 +54,7 @@ export default function App() {
             let allData: FetchedMediaItem[] = [];
             for (const type of types) {
                 if (!type) continue;
-                const response = await axios.get(`${API_BASE}/get-media/${type}`);
+                const response = await axios.get(`${API_BASE}/api/get-media/${type}`);
                 allData = allData.concat((response.data.data || []).map((item: any) => ({ ...item, media_type_key: type })));
             }
             setAllMediaData(allData);
@@ -120,7 +120,7 @@ export default function App() {
     const updateToWatched = async (rowIndex: number) => {
         setLoading(true);
         try {
-            await axios.put(`${API_BASE}/update-media`, {
+            await axios.put(`${API_BASE}/api/update-media`, {
                 rowIndex: rowIndex, mediaType: form.mediaType, watched: 'True',
             });
             setResult({ message: `"${form.mediaName}" updated to "Watched"!` });
@@ -136,7 +136,7 @@ export default function App() {
     const submitMedia = async (mediaType: string, tmdbId: number, watched: string, watchedTill: string) => {
         setLoading(true);
         try {
-            const response = await axios.post(`${API_BASE}/add-media`, {
+            const response = await axios.post(`${API_BASE}/api/add-media`, {
                 mediaType, tmdbId, watched, watchedTill
             });
             setResult({ message: response.data.message, details: response.data.data });

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { MediaCard } from './components/MediaCard';
 import { MediaDetailsModal } from './MediaDetailsModal';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:5000';
 
 type ListMediaType = "series" | "movie" | "anime" | "anime_movie";
 
@@ -25,7 +25,7 @@ export function HomeView() {
             setLoading(true);
             try {
                 const types: ListMediaType[] = ["series", "movie", "anime", "anime_movie"];
-                const promises = types.map(t => axios.get(`${API_BASE}/get-media/${t}`));
+                const promises = types.map(t => axios.get(`${API_BASE}/api/get-media/${t}`));
                 const results = await Promise.all(promises);
                 
                 let combined: MediaItem[] = [];
