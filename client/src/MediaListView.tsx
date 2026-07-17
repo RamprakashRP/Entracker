@@ -7,7 +7,7 @@ import { MediaDetailsModal } from './MediaDetailsModal';
 import { EditModal } from './EditModal';
 import { MediaCard } from './components/MediaCard';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : '');
 
 export type ListMediaType = "series" | "movie" | "anime" | "anime_movie";
 

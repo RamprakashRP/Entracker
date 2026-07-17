@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : '');
 
 interface MediaItem {
     row_index: number;
@@ -61,35 +61,31 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
     return (
         <motion.div 
             ref={cardRef}
-            className="media-card" 
+            className="media-card"
             variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
             onClick={onClick}
         >
-            <div className="media-card-header" style={{ 
-                backgroundImage: posterPath ? `url(${API_BASE}${posterPath})` : 'none',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                height: posterPath ? '200px' : 'auto',
-                position: 'relative'
-            }}>
-                {!posterPath && isVisible && (
-                    <div className="poster-placeholder" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
-                        Loading Banner...
+            <div className="media-poster-container">
+                {isVisible && posterPath ? (
+                    <img src={`${API_BASE}${posterPath}`} alt={title} className="media-poster" />
+                ) : (
+                    <div className="poster-placeholder">
+                        <span>{isVisible ? 'Loading Poster...' : ''}</span>
                     </div>
                 )}
                 
-                <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', padding: '1rem', background: posterPath ? 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)' : 'none' }}>
-                    <h3 className="media-title" style={{ textShadow: posterPath ? '0 2px 4px rgba(0,0,0,0.8)' : 'none', margin: 0 }}>{title}</h3>
-                    <button className="media-edit-btn" onClick={(e) => onEdit && onEdit(e)} title="Edit Media" style={{ flexShrink: 0, marginLeft: '0.5rem' }}>
+                <div className="media-poster-overlay">
+                    <h3 className="media-title">{title}</h3>
+                    <button className="media-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(e); }} title="Edit Media">
                         <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z" /></svg>
                     </button>
                 </div>
-            </div>
-            
-            <div style={{ padding: '0 1rem' }}>
-                <span className={`media-status-badge ${isWatched ? 'status-watched' : 'status-unwatched'}`}>
-                    {isWatched ? 'Watched' : 'Watchlist'}
-                </span>
+                
+                <div className="media-status-pill">
+                    <span className={`media-status-badge ${isWatched ? 'status-watched' : 'status-unwatched'}`}>
+                        {isWatched ? 'WATCHED' : 'WATCHLIST'}
+                    </span>
+                </div>
             </div>
             
             <div className="media-meta">
