@@ -31,6 +31,9 @@ const SHEET_CONFIG: { [key: string]: { sheetName: string; range: string; columns
     anime_movie: { sheetName: 'Anime Movies', range: 'Anime Movies!A:H', columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched', 'release_date'] }
 };
 
+const mediaCache: { [key: string]: { data: any, timestamp: number } } = {};
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
 const getSheetsClient = async () => {
     let authOptions: any = { scopes: 'https://www.googleapis.com/auth/spreadsheets' };
     if (process.env.GOOGLE_CREDENTIALS_BASE64) {
@@ -159,6 +162,7 @@ app.post('/add-media', async (req: Request, res: Response) => {
             requestBody: { values: allNewRows },
         });
 
+        delete mediaCache[mediaType];
         res.status(201).json({ message: 'Media added successfully!', data: transformedData });
     } catch (error: any) {
         console.error("Add/Update Error:", error);
@@ -170,6 +174,11 @@ app.get('/get-media/:mediaType', async (req, res) => {
     const { mediaType } = req.params;
     const config = SHEET_CONFIG[mediaType];
     if (!config) { return res.status(400).json({ error: 'Invalid media type.' }); }
+    
+    if (mediaCache[mediaType] && (Date.now() - mediaCache[mediaType].timestamp < CACHE_DURATION_MS)) {
+        return res.status(200).json({ data: mediaCache[mediaType].data });
+    }
+
     try {
         const sheets = await getSheetsClient();
         const response = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: config.range });
@@ -181,8 +190,10 @@ app.get('/get-media/:mediaType', async (req, res) => {
                 header.forEach((key, i) => { rowData[key.toLowerCase().replace(/ /g, '_')] = row[i]; });
                 return rowData;
             });
+            mediaCache[mediaType] = { data, timestamp: Date.now() };
             res.status(200).json({ data });
         } else {
+            mediaCache[mediaType] = { data: [], timestamp: Date.now() };
             res.status(200).json({ data: [] });
         }
     } catch (error: any) {
@@ -332,6 +343,7 @@ app.put('/update-media', async (req, res) => {
         }
 
         await Promise.all(updates);
+        delete mediaCache[mediaType];
         res.status(200).json({ message: 'Update successful!' });
     } catch (error: any) {
         console.error("Update Error:", error);
