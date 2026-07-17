@@ -69,7 +69,6 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
     }, []);
 
     useEffect(() => {
-        let objectUrl: string | null = null;
         let isMounted = true;
         if (isVisible && !posterPath) {
             const fetchPoster = async () => {
@@ -78,12 +77,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
                     const res = await posterQueue.add(() => axios.get(`${API_BASE}/api/poster/${item.media_type_key}/${encodeURIComponent(name)}`)) as any;
                     
                     if (isMounted && res.data.poster_path) {
-                        // Queue the proxy image fetch to prevent concurrent Vercel timeouts
-                        const imgRes = await posterQueue.add(() => axios.get(`${API_BASE}${res.data.poster_path}`, { responseType: 'blob' })) as any;
-                        if (isMounted) {
-                            objectUrl = URL.createObjectURL(imgRes.data);
-                            setPosterPath(objectUrl);
-                        }
+                        setPosterPath(res.data.poster_path.startsWith('/') ? `${API_BASE}${res.data.poster_path}` : res.data.poster_path);
                     }
                 } catch (e) {
                     console.error("Failed to load poster", e);
@@ -93,7 +87,6 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
         }
         return () => {
             isMounted = false;
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
         };
     }, [isVisible, item, posterPath]);
 
