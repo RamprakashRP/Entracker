@@ -191,8 +191,29 @@ export default function App() {
                 try {
                     const res = await axios.post(`${API_BASE}/api/voice-nlp`, { transcript: finalText });
                     const parsed = res.data;
-                    await submitMedia(parsed.mediaType, parsed.tmdbId, parsed.watched, parsed.watchedTill || 'Not Watched');
-                    setResult({ message: `Successfully tracked!`, details: undefined });
+                    
+                    // Check if it already exists in the user's tracker
+                    const existingItem = allMediaData.find(m => 
+                        m.series_name?.toLowerCase() === parsed.officialName.toLowerCase() || 
+                        m.movies_name?.toLowerCase() === parsed.officialName.toLowerCase() || 
+                        m.anime_name?.toLowerCase() === parsed.officialName.toLowerCase()
+                    );
+                    
+                    if (existingItem) {
+                        setResult({ message: `Updating progress for "${parsed.officialName}"...` });
+                        await axios.put(`${API_BASE}/api/update-media`, {
+                            rowIndex: existingItem.row_index,
+                            mediaType: existingItem.media_type_key,
+                            watched: parsed.watched,
+                            watchedTill: parsed.watchedTill || 'Not Watched',
+                            name: parsed.officialName
+                        });
+                        setResult({ message: `Successfully updated "${parsed.officialName}"!` });
+                        fetchAllMediaData();
+                    } else {
+                        await submitMedia(parsed.mediaType, parsed.tmdbId, parsed.watched, parsed.watchedTill || 'Not Watched');
+                        setResult({ message: `Successfully tracked "${parsed.officialName}"!` });
+                    }
                 } catch (err: any) {
                     setError(err.response?.data?.error || "Failed to parse voice command.");
                     setResult(null);
