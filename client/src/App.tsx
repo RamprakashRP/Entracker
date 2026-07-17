@@ -178,13 +178,7 @@ export default function App() {
                 deepgramLiveRef.current = null;
             }
             
-            // Use a local variable to capture the final transcript to avoid race conditions
-            let finalText = '';
-            setLiveTranscript(prev => {
-                finalText = prev;
-                return prev;
-            });
-            
+            const finalText = finalTranscriptRef.current;            
             if (finalText.trim().length > 0) {
                 setLoading(true);
                 setResult({ message: "Parsing your command..." });
