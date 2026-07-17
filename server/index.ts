@@ -28,9 +28,9 @@ const azureOpenAI = new AzureOpenAI({
 });
 
 const SHEET_CONFIG: { [key: string]: { sheetName: string; range: string; columns: string[] } } = {
-    series: { sheetName: 'Series', range: 'Series!A:I', columns: ['series_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched', 'release_date'] },
+    series: { sheetName: 'Series', range: 'Series!A:J', columns: ['series_name', 'series_status', 'season_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched', 'release_date'] },
     movie: { sheetName: 'Movies', range: 'Movies!A:H', columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched', 'release_date'] },
-    anime: { sheetName: 'Anime', range: 'Anime!A:I', columns: ['anime_name', 'series_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched', 'release_date'] },
+    anime: { sheetName: 'Anime', range: 'Anime!A:J', columns: ['anime_name', 'series_status', 'season_status', 'watched_till', 'next_season', 'expected_on', 'update', 'watched', 'release_date'] },
     anime_movie: { sheetName: 'Anime Movies', range: 'Anime Movies!A:H', columns: ['movies_name', 'franchise', 'watched_till', 'next_part', 'expected_on', 'update', 'watched', 'release_date'] }
 };
 
