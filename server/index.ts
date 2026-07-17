@@ -100,8 +100,10 @@ app.get('/api/image-proxy', async (req: Request, res: Response) => {
     const imageUrl = req.query.url as string;
     if (!imageUrl) return res.status(400).send('URL required');
     try {
-        const response = await axios.get(imageUrl, { responseType: 'stream' });
-        response.data.pipe(res);
+        const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(response.data, 'binary');
+        res.setHeader('Content-Type', response.headers['content-type'] || 'image/jpeg');
+        res.send(buffer);
     } catch (error) {
         res.status(500).send('Failed to fetch image');
     }

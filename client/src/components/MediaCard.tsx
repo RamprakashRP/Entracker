@@ -20,7 +20,10 @@ class PosterQueue {
         this.isProcessing = true;
         const { task, resolve, reject } = this.queue.shift()!;
         try {
-            const res = await task();
+            const res = await Promise.race([
+                task(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("Queue task timeout")), 15000))
+            ]);
             resolve(res);
         } catch (e) {
             reject(e);
@@ -108,7 +111,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
                 backgroundImage: posterPath ? `url(${posterPath})` : 'none',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                height: posterPath ? '200px' : 'auto',
+                height: '200px',
                 position: 'relative'
             }}>
                 {!posterPath && isVisible && (
