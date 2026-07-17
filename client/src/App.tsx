@@ -31,12 +31,15 @@ const initialForm = {
 
 // MediaDropdown removed in favor of styled native select for better accessibility and UX
 
+import { EditModal } from './EditModal';
+
 export default function App() {
     const [activeTab, setActiveTab] = useState<'home' | 'add' | 'library'>('home');
     const [form, setForm] = useState(initialForm);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<{ message: string; details?: any } | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [editingItem, setEditingItem] = useState<any | null>(null);
     const [allMediaData, setAllMediaData] = useState<FetchedMediaItem[]>([]);
     const [suggestions, setSuggestions] = useState<FetchedMediaItem[]>([]);
 
@@ -194,22 +197,27 @@ export default function App() {
                     );
                     
                     if (existingItem) {
-                        setResult({ message: `Updating progress for "${parsed.officialName}"...` });
-                        await axios.put(`${API_BASE}/api/update-media`, {
-                            rowIndex: existingItem.row_index,
-                            mediaType: existingItem.media_type_key,
-                            watched: parsed.watched,
-                            watchedTill: parsed.watchedTill || 'Not Watched',
-                            name: parsed.officialName
+                        setResult({ message: `Found "${parsed.officialName}". Opening update form...` });
+                        setTimeout(() => setResult(null), 5000);
+                        setEditingItem({
+                            ...existingItem,
+                            watched_till: parsed.watchedTill || existingItem.watched_till
                         });
-                        setResult({ message: `Successfully updated "${parsed.officialName}"!` });
-                        fetchAllMediaData();
                     } else {
-                        await submitMedia(parsed.mediaType, parsed.tmdbId, parsed.watched, parsed.watchedTill || 'Not Watched');
-                        setResult({ message: `Successfully tracked "${parsed.officialName}"!` });
+                        setResult({ message: `Found "${parsed.officialName}". Preparing to track...` });
+                        setTimeout(() => setResult(null), 5000);
+                        setForm({
+                            mediaType: parsed.mediaType,
+                            mediaName: parsed.officialName,
+                            seasonNumber: parsed.watchedTill?.includes('S') ? String(parseInt(parsed.watchedTill.match(/S(\d+)/)?.[1] || "1")) : "1",
+                            episodeNumber: parsed.watchedTill?.includes('E') ? String(parseInt(parsed.watchedTill.match(/E(\d+)/)?.[1] || "0")) : "0",
+                            watchedTill: parsed.watchedTill || ""
+                        });
+                        setActiveTab('add');
                     }
                 } catch (err: any) {
                     setError(err.response?.data?.error || "Failed to parse voice command.");
+                    setTimeout(() => setError(null), 5000);
                     setResult(null);
                 } finally {
                     setLoading(false);
@@ -455,6 +463,14 @@ export default function App() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {editingItem && (
+                <EditModal 
+                    item={editingItem} 
+                    onClose={() => setEditingItem(null)} 
+                    onUpdate={() => { setEditingItem(null); fetchAllMediaData(); }} 
+                />
+            )}
         </div>
     );
 }

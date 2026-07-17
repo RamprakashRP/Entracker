@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { FranchiseModal, type FranchiseMovieItem } from './FranchiseModal';
 import { MediaDetailsModal } from './MediaDetailsModal';
-import { EditModal } from './EditModal';
+
 import { MediaCard } from './components/MediaCard';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:5000';
@@ -21,7 +21,12 @@ interface MediaItem {
     [key: string]: any;
 }
 
-const MediaListView: React.FC = () => {
+interface MediaListViewProps {
+    onDetailsClick?: (item: MediaItem) => void;
+    onEditClick?: (item: MediaItem) => void;
+}
+
+const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditClick }) => {
     const [selectedCategories, setSelectedCategories] = useState<ListMediaType[]>(['series', 'movie', 'anime', 'anime_movie']);
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['watched', 'watchlist']);
     const [mediaList, setMediaList] = useState<MediaItem[]>([]);
@@ -39,7 +44,6 @@ const MediaListView: React.FC = () => {
     
     const [selectedFranchise, setSelectedFranchise] = useState<{name: string, type: 'movie' | 'anime_movie'} | null>(null);
     const [detailsItem, setDetailsItem] = useState<MediaItem | null>(null);
-    const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
     const [cameFromFranchise, setCameFromFranchise] = useState<{name: string, type: 'movie' | 'anime_movie'} | null>(null);
 
     useEffect(() => {
@@ -117,25 +121,28 @@ const MediaListView: React.FC = () => {
 
         // Sort
         result.sort((a, b) => {
+            const getValidTime = (dateStr: any) => {
+                if (!dateStr) return 0;
+                const time = new Date(dateStr).getTime();
+                return isNaN(time) ? 0 : time;
+            };
+
             const nameKeyA = a.media_type_key.includes('movie') ? 'movies_name' : `${a.media_type_key}_name`;
             const nameKeyB = b.media_type_key.includes('movie') ? 'movies_name' : `${b.media_type_key}_name`;
+            
             if (sortOption === 'name-asc') return (a[nameKeyA] || '').localeCompare(b[nameKeyB] || '');
             if (sortOption === 'name-desc') return (b[nameKeyB] || '').localeCompare(a[nameKeyA] || '');
             if (sortOption === 'date-new') {
-                const dA = new Date(a.release_date || 0).getTime();
-                const dB = new Date(b.release_date || 0).getTime();
-                return dB - dA;
+                return getValidTime(b.release_date) - getValidTime(a.release_date);
             }
             if (sortOption === 'date-old') {
-                const dA = new Date(a.release_date || 0).getTime();
-                const dB = new Date(b.release_date || 0).getTime();
-                return dA - dB;
+                return getValidTime(a.release_date) - getValidTime(b.release_date);
             }
             if (sortOption === 'recently-updated') {
-                const dA = new Date(a.update || 0).getTime();
-                const dB = new Date(b.update || 0).getTime();
+                const dA = getValidTime(a.update);
+                const dB = getValidTime(b.update);
                 if (dA !== dB) return dB - dA;
-                return b.row_index - a.row_index; // fallback to most recent row added
+                return b.row_index - a.row_index;
             }
             return 0;
         });
@@ -159,11 +166,6 @@ const MediaListView: React.FC = () => {
         setDetailsItem(null);
         if (cameFromFranchise) { setSelectedFranchise(cameFromFranchise); }
         setCameFromFranchise(null);
-    };
-
-    const handleUpdate = () => {
-        setEditingItem(null);
-        fetchAllMedia();
     };
 
     const toggleCategory = (type: ListMediaType) => {
@@ -276,8 +278,8 @@ const MediaListView: React.FC = () => {
                                         key={item.row_index} 
                                         item={item} 
                                         selectedListType={item.media_type_key} 
-                                        onClick={() => { setCameFromFranchise(null); setDetailsItem(item); }}
-                                        onEdit={(e) => { e.stopPropagation(); setEditingItem(item); }}
+                                        onClick={() => { onDetailsClick?.(item); setCameFromFranchise(null); setDetailsItem(item); }}
+                                        onEdit={(e) => { e.stopPropagation(); onEditClick?.(item); }}
                                         onFranchiseClick={(franchise, e) => { e.stopPropagation(); handleFranchiseClick(franchise, item.media_type_key as 'movie'|'anime_movie'); }}
                                     />
                                 ))}
@@ -292,7 +294,7 @@ const MediaListView: React.FC = () => {
                                             key={item.row_index} 
                                             className="compact-list-row"
                                             variants={{ hidden: { opacity: 0, x: -20 }, show: { opacity: 1, x: 0 } }}
-                                            onClick={() => { setCameFromFranchise(null); setDetailsItem(item); }}
+                                            onClick={() => { onDetailsClick?.(item); setCameFromFranchise(null); setDetailsItem(item); }}
                                         >
                                             <div className="list-title">{title}</div>
                                             <div className="list-meta hide-on-small">{item.release_date || 'N/A'}</div>
@@ -307,7 +309,7 @@ const MediaListView: React.FC = () => {
                                                 </span>
                                             </div>
                                             <div>
-                                                <button className="media-edit-btn" style={{ position: 'static', background: 'transparent' }} onClick={(e) => { e.stopPropagation(); setEditingItem(item); }}>
+                                                <button className="media-edit-btn" style={{ position: 'static', background: 'transparent' }} onClick={(e) => { e.stopPropagation(); onEditClick?.(item); }}>
                                                     <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z" /></svg>
                                                 </button>
                                             </div>
@@ -323,7 +325,6 @@ const MediaListView: React.FC = () => {
             
             {selectedFranchise && <FranchiseModal franchiseName={selectedFranchise.name} mediaType={selectedFranchise.type} onClose={() => setSelectedFranchise(null)} onMovieSelect={handleMovieSelectFromModal} />}
             {detailsItem && <MediaDetailsModal mediaName={detailsItem.series_name || detailsItem.movies_name || detailsItem.anime_name} mediaType={detailsItem.media_type_key} onClose={handleDetailsClose} />}
-            {editingItem && <EditModal item={editingItem} onClose={() => setEditingItem(null)} onUpdate={handleUpdate} />}
         </>
     );
 };

@@ -104,7 +104,8 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
                 backgroundImage: posterPath ? `url(${posterPath})` : 'none',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                height: '200px',
+                aspectRatio: '2/3',
+                minHeight: '250px',
                 position: 'relative'
             }}>
                 {!posterPath && isVisible && (

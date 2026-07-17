@@ -417,8 +417,8 @@ app.post('/api/voice-nlp', async (req: Request, res: Response) => {
             content: `You are a voice command parser for a media tracking app. Extract the following from the user's spoken command:
             - mediaType: strictly one of "series", "movie", "anime", "anime_movie". (e.g. if they say "anime", it's anime. If they say "show", it's series. If they say "film", it's movie. Best guess if unspecified).
             - mediaName: the name of the show/movie.
-            - watched: strictly "True" or "False". If they imply they finished it or watched it all, "True". If they watched up to a point or just want to add it, "False".
-            - watchedTill: A string describing their progress (e.g., "Season 2 Episode 4", "Not Watched").
+            - watched: strictly "True" or "False". If the user says to put it in their "watchlist", set this to "False". If they imply they finished it completely, set to "True". If they are tracking progress, set to "False".
+            - watchedTill: A string describing their progress. If it's a watchlist command, set this strictly to "Not Watched". If they specify progress, format it strictly as "Sxx Exx" (e.g., "Season 3 Episode 24" becomes "S03 E24". "Episode 5" becomes "S01 E05").
             Return ONLY a valid JSON object with these exactly 4 keys.` 
         };
         const userPrompt = { role: 'user' as const, content: `Command: "${transcript}"` };
