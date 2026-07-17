@@ -33,15 +33,15 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         >
             <motion.div
                 className="modal-content"
-                initial={{ y: 50, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 50, opacity: 0 }}
+                initial={{ y: 50, scale: 0.95, opacity: 0 }}
+                animate={{ y: 0, scale: 1, opacity: 1 }}
+                exit={{ y: 50, scale: 0.95, opacity: 0 }}
             >
-                <h3>{title}</h3>
+                <h3 className="modal-title">{title}</h3>
                 <p style={{ lineHeight: 1.6, margin: '1rem 0 1.5rem 0' }}>{message}</p>
                 <div className="modal-actions">
-                    <button className="modal-button secondary" onClick={onCancel}>{cancelText}</button>
-                    <button className="modal-button primary" onClick={onConfirm}>{confirmText}</button>
+                    <button className="premium-button secondary" onClick={onCancel}>{cancelText}</button>
+                    <button className="premium-button" onClick={onConfirm}>{confirmText}</button>
                 </div>
             </motion.div>
         </motion.div>

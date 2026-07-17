@@ -7,6 +7,7 @@ import { DisambiguationModal, type TMDBResult } from './DisambiguationModal';
 import { MediaDetailsModal } from './MediaDetailsModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import DotGrid from './DotGrid';
+import { HomeView } from './HomeView';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -28,65 +29,14 @@ const initialForm = {
     mediaType: "" as MediaType, mediaName: "", seasonNumber: "", episodeNumber: "", watchedTill: "",
 };
 
-interface MediaDropdownProps {
-    options: [string, string][]; selectedOption: MediaType;
-    onSelect: (value: MediaType) => void; placeholder: string;
-}
-
-const MediaDropdown: React.FC<MediaDropdownProps> = ({ options, selectedOption, onSelect, placeholder }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-    const headerRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const headerElement = headerRef.current;
-        const handleWheel = (event: WheelEvent) => {
-            if (!isOpen) {
-                event.preventDefault();
-                const currentIndex = options.findIndex(([value]) => value === selectedOption);
-                const isScrollingDown = event.deltaY > 0;
-                let nextIndex = isScrollingDown ? (currentIndex + 1) % options.length : (currentIndex - 1 + options.length) % options.length;
-                onSelect(options[nextIndex][0] as MediaType);
-            }
-        };
-        if (headerElement) headerElement.addEventListener('wheel', handleWheel);
-        return () => { if (headerElement) headerElement.removeEventListener('wheel', handleWheel); };
-    }, [isOpen, options, selectedOption, onSelect]);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setIsOpen(false);
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    const handleSelect = (value: MediaType) => { onSelect(value); setIsOpen(false); };
-    const currentLabel = selectedOption ? mediaLabels[selectedOption] : placeholder;
-
-    return (
-        <div className="custom-dropdown-wrapper" ref={dropdownRef}>
-            <div ref={headerRef} className="custom-dropdown-header" onClick={() => setIsOpen(!isOpen)} tabIndex={0}>
-                <span>{currentLabel}</span>
-                <svg className={`dropdown-arrow ${isOpen ? "open" : ""}`} viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
-            </div>
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.ul initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="custom-dropdown-list">
-                        {options.map(([value, label]) => ( <li key={value} className="custom-dropdown-list-item" onClick={() => handleSelect(value as MediaType)}>{label}</li> ))}
-                    </motion.ul>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-};
+// MediaDropdown removed in favor of styled native select for better accessibility and UX
 
 export default function App() {
+    const [activeTab, setActiveTab] = useState<'home' | 'add' | 'library'>('home');
     const [form, setForm] = useState(initialForm);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<{ message: string; details?: any } | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [currentView, setCurrentView] = useState<'add' | 'list'>('add');
     const [allMediaData, setAllMediaData] = useState<FetchedMediaItem[]>([]);
     const [suggestions, setSuggestions] = useState<FetchedMediaItem[]>([]);
 
@@ -183,14 +133,11 @@ export default function App() {
         }
     };
 
-    const addMediaById = async (tmdbId: number, isWatched: boolean) => {
-        setDisambiguation({ isOpen: false, results: [], isWatched: false });
+    const submitMedia = async (mediaType: string, tmdbId: number, watched: string, watchedTill: string) => {
         setLoading(true);
         try {
             const response = await axios.post(`${API_BASE}/add-media`, {
-                mediaType: form.mediaType, tmdbId: tmdbId,
-                watched: isWatched ? 'True' : 'False',
-                watchedTill: `S${String(form.seasonNumber || 1).padStart(2, '0')} E${String(form.episodeNumber || 0).padStart(2, '0')}`
+                mediaType, tmdbId, watched, watchedTill
             });
             setResult({ message: response.data.message, details: response.data.data });
             setForm(initialForm);
@@ -201,19 +148,138 @@ export default function App() {
             setLoading(false);
         }
     };
+
+    const addMediaById = async (tmdbId: number, isWatched: boolean) => {
+        setDisambiguation({ isOpen: false, results: [], isWatched: false });
+        await submitMedia(
+            form.mediaType, 
+            tmdbId, 
+            isWatched ? 'True' : 'False', 
+            `S${String(form.seasonNumber || 1).padStart(2, '0')} E${String(form.episodeNumber || 0).padStart(2, '0')}`
+        );
+    };
+
+    const [isListening, setIsListening] = useState(false);
+    const [liveTranscript, setLiveTranscript] = useState('');
+    const finalTranscriptRef = useRef(''); // Tracks final accepted words
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const deepgramLiveRef = useRef<WebSocket | null>(null);
+
+    const toggleListening = async () => {
+        if (isListening) {
+            setIsListening(false);
+            
+            // Stop recording
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+                mediaRecorderRef.current.stop();
+            }
+            if (deepgramLiveRef.current) {
+                deepgramLiveRef.current.close();
+                deepgramLiveRef.current = null;
+            }
+            
+            // Use a local variable to capture the final transcript to avoid race conditions
+            let finalText = '';
+            setLiveTranscript(prev => {
+                finalText = prev;
+                return prev;
+            });
+            
+            if (finalText.trim().length > 0) {
+                setLoading(true);
+                setResult({ message: "Parsing your command..." });
+                try {
+                    const res = await axios.post(`${API_BASE}/api/voice-nlp`, { transcript: finalText });
+                    const parsed = res.data;
+                    await submitMedia(parsed.mediaType, parsed.tmdbId, parsed.watched, parsed.watchedTill || 'Not Watched');
+                    setResult({ message: `Successfully tracked!`, details: undefined });
+                } catch (err: any) {
+                    setError(err.response?.data?.error || "Failed to parse voice command.");
+                    setResult(null);
+                } finally {
+                    setLoading(false);
+                    setLiveTranscript('');
+                    finalTranscriptRef.current = '';
+                }
+            } else {
+                setResult(null);
+                setLiveTranscript('');
+                finalTranscriptRef.current = '';
+            }
+            return;
+        }
+
+        // Start recording
+        try {
+            const keyRes = await axios.get(`${API_BASE}/api/deepgram-key`);
+            const dgKey = keyRes.data.key;
+            
+            const socket = new WebSocket('wss://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&interim_results=true', ['token', dgKey]);
+            deepgramLiveRef.current = socket;
+            finalTranscriptRef.current = '';
+            
+            socket.onopen = async () => {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                mediaRecorderRef.current = mediaRecorder;
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0 && socket.readyState === 1) {
+                        socket.send(event.data);
+                    }
+                };
+
+                mediaRecorder.onstart = () => {
+                    setIsListening(true);
+                    setLiveTranscript('');
+                    finalTranscriptRef.current = '';
+                    setResult({ message: "Listening... (Click Mic again to stop)" });
+                };
+
+                mediaRecorder.onstop = () => {
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                // Send a chunk every 250ms for live streaming
+                mediaRecorder.start(250);
+            };
+            
+            socket.onmessage = (message: any) => {
+                try {
+                    const received = JSON.parse(message.data);
+                    if (received.type === "Results") {
+                        const transcriptFragment = received.channel.alternatives[0]?.transcript;
+                        if (transcriptFragment) {
+                            if (received.is_final) {
+                                finalTranscriptRef.current = (finalTranscriptRef.current + " " + transcriptFragment).trim();
+                                setLiveTranscript(finalTranscriptRef.current);
+                            } else {
+                                setLiveTranscript((finalTranscriptRef.current + " " + transcriptFragment).trim());
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // Ignore parse errors
+                }
+            };
+            
+            socket.onerror = (err: any) => {
+                console.error("Deepgram Error:", err);
+                setError("Streaming error. Please try again.");
+                if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+                    mediaRecorderRef.current.stop();
+                }
+                setIsListening(false);
+            };
+
+        } catch (err) {
+            console.error(err);
+            setError("Could not connect to microphone or transcription service.");
+        }
+    };
     
     const viewDetails = (item: TMDBResult) => {
         setDetailsItem({ name: item.name, type: form.mediaType });
-    };
-
-    const updateNumberInput = (name: 'seasonNumber' | 'episodeNumber', delta: number) => {
-        setForm(prev => {
-            const currentValue = parseInt(prev[name] || '0', 10);
-            let newValue = currentValue + delta;
-            if (name === 'seasonNumber' && newValue < 1) newValue = 1;
-            if (name === 'episodeNumber' && newValue < 0) newValue = 0;
-            return { ...prev, [name]: newValue.toString() };
-        });
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement> | MediaType) => {
@@ -246,75 +312,46 @@ export default function App() {
         setSuggestions([]);
     };
 
-    const handleTabClick = (view: 'add' | 'list') => {
-        setCurrentView(view);
-        setResult(null); setError(null);
-        if (view === 'add') { setForm(initialForm); setSuggestions([]); }
-    };
-
     return (
-        <div className="main-app-wrapper">
-            <div className="background-container">
-                <DotGrid 
-                    dotSize={2}
-                    gap={10}
-                    baseColor="#ff0080"
-                    activeColor="#00ffe5"
-                    proximity={80}
-                    shockRadius={100}
-                    shockStrength={20}
-                    resistance={250}
-                    returnDuration={0.5}
-                />
-            </div>
-            
-            <img src="/RP.png" alt="RP Logo" className="app-logo" />
-            
-            {disambiguation.isOpen && (
-                <DisambiguationModal
-                    results={disambiguation.results}
-                    onSelect={(result) => addMediaById(result.id, disambiguation.isWatched)}
-                    onViewDetails={viewDetails}
-                    onClose={() => setDisambiguation({ ...disambiguation, isOpen: false })}
-                />
-            )}
-            {detailsItem && (
-                <MediaDetailsModal
-                    mediaName={detailsItem.name}
-                    mediaType={detailsItem.type}
-                    onClose={() => setDetailsItem(null)}
-                />
-            )}
-            <ConfirmationModal 
-                isOpen={modalState.isOpen} title={modalState.title}
-                message={modalState.message} onConfirm={modalState.onConfirm}
-                onCancel={() => setModalState({ ...modalState, isOpen: false })}
-                confirmText={modalState.confirmText}
-            />
+        <div className="app-container">
+            <DotGrid dotSize={2} gap={10} baseColor="#8B5CF6" activeColor="#06B6D4" proximity={80} shockRadius={100} shockStrength={20} resistance={250} returnDuration={0.5} />
+            <div className="content-wrapper">
+                <nav className="top-nav">
+                    <div className="logo-container">
+                        <img src={'/RP.png'} alt="Entracker Logo" className="logo" />
+                        <h1>Entracker</h1>
+                    </div>
+                    <div className="nav-links">
+                        <button className={`nav-link ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
+                        <button className={`nav-link ${activeTab === 'library' ? 'active' : ''}`} onClick={() => setActiveTab('library')}>Library</button>
+                        <button className={`nav-link ${activeTab === 'add' ? 'active' : ''}`} onClick={() => setActiveTab('add')}>Add Media</button>
+                    </div>
+                </nav>
 
-            <motion.div 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }}
-                className={`glass-card-container ${currentView === 'list' ? 'list-view-active' : ''}`}
-            >
-                <div className="tab-navigation">
-                    <button className={`tab-button ${currentView === 'add' ? 'active' : ''}`} onClick={() => handleTabClick('add')}>Add Media</button>
-                    <button className={`tab-button ${currentView === 'list' ? 'active' : ''}`} onClick={() => handleTabClick('list')}>View List</button>
-                </div>
-                <h1 className="app-title">Entracker</h1>
-                <AnimatePresence mode="wait">
-                    {currentView === 'add' ? (
-                        <motion.div key="add-form">
-                            <form onSubmit={(e: FormEvent) => { e.preventDefault(); handleFormSubmit(true); }}>
-                                <div className="form-first-row">
-                                    <MediaDropdown options={sortedMediaOptions as [string, string][]} selectedOption={form.mediaType} onSelect={(v) => handleChange(v)} placeholder="Select Media Type" />
-                                </div>
-                                <div className="form-full-width-row">
-                                    <div className="input-with-suggestions-container">
-                                        <input name="mediaName" type="text" value={form.mediaName} onChange={handleChange} placeholder="Enter name" className="form-input" autoComplete="off" disabled={!form.mediaType} />
+                <main className="main-content">
+                    <AnimatePresence mode="wait">
+                        {activeTab === 'home' && (
+                            <motion.div key="home" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
+                                <HomeView />
+                            </motion.div>
+                        )}
+                        {activeTab === 'add' && (
+                            <motion.div key="add-form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <form className="add-media-form" onSubmit={(e: FormEvent) => { e.preventDefault(); handleFormSubmit(true); }}>
+                                    <div className="input-group">
+                                        <label>Category</label>
+                                        <select className="premium-select" value={form.mediaType} onChange={(e) => handleChange(e.target.value as MediaType)}>
+                                            <option value="" disabled>Select Media Type</option>
+                                            {sortedMediaOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+                                        </select>
+                                    </div>
+                                    
+                                    <div className="input-group" style={{ flex: 2, position: 'relative' }}>
+                                        <label>Title</label>
+                                        <input name="mediaName" type="text" value={form.mediaName} onChange={handleChange} placeholder="Search movie or show..." className="premium-input" autoComplete="off" disabled={!form.mediaType} />
                                         <AnimatePresence>
                                             {suggestions.length > 0 && (
-                                                <motion.ul className="suggestions-list">
+                                                <motion.ul className="suggestions-list" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                                                     {suggestions.map((item) => (
                                                         <li key={item.row_index} onClick={() => handleSuggestionClick(item)}>
                                                             {item.series_name || item.movies_name || item.anime_name}
@@ -324,46 +361,85 @@ export default function App() {
                                             )}
                                         </AnimatePresence>
                                     </div>
-                                </div>
-                                 <div className="conditional-input-row">
+                                    
                                     <AnimatePresence>
                                         {(form.mediaType === "series" || form.mediaType === "anime") && (
-                                            <motion.div key="series-inputs" className="watched-till-group" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
-                                                <label htmlFor="seasonNumber">Season:</label>
-                                                <div className="watched-till-input-container">
-                                                    <button type="button" className="spin-button" onClick={() => updateNumberInput('seasonNumber', -1)} disabled={parseInt(form.seasonNumber || '1', 10) <= 1}>-</button>
-                                                    <input id="seasonNumber" name="seasonNumber" type="number" value={form.seasonNumber} onChange={handleChange} placeholder="1" min="1" className="watched-till-input-short" required />
-                                                    <button type="button" className="spin-button" onClick={() => updateNumberInput('seasonNumber', 1)}>+</button>
+                                            <motion.div key="series-inputs" className="input-group" style={{ flexDirection: 'row', gap: '1rem', flex: 'none' }} initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}>
+                                                <div className="input-group" style={{ minWidth: '70px' }}>
+                                                    <label>Season</label>
+                                                    <input name="seasonNumber" type="number" value={form.seasonNumber} onChange={handleChange} placeholder="1" min="1" className="premium-input" required style={{ textAlign: 'center' }} />
                                                 </div>
-                                                <label htmlFor="episodeNumber">Episode:</label>
-                                                <div className="watched-till-input-container">
-                                                    <button type="button" className="spin-button" onClick={() => updateNumberInput('episodeNumber', -1)} disabled={parseInt(form.episodeNumber || '0', 10) <= 0}>-</button>
-                                                    <input id="episodeNumber" name="episodeNumber" type="number" value={form.episodeNumber} onChange={handleChange} placeholder="0" min="0" className="watched-till-input-short" />
-                                                    <button type="button" className="spin-button" onClick={() => updateNumberInput('episodeNumber', 1)}>+</button>
+                                                <div className="input-group" style={{ minWidth: '70px' }}>
+                                                    <label>Episode</label>
+                                                    <input name="episodeNumber" type="number" value={form.episodeNumber} onChange={handleChange} placeholder="0" min="0" className="premium-input" style={{ textAlign: 'center' }} />
                                                 </div>
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
-                                </div>
-                                <div className="submit-button-group">
-                                    <motion.button type="submit" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button">
-                                        {loading ? "Processing..." : "Add to Tracker"}
-                                    </motion.button>
-                                    <motion.button type="button" onClick={() => handleFormSubmit(false)} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} disabled={loading || !form.mediaType || !form.mediaName} className="submit-button watchlist">
-                                        {loading ? "Processing..." : "Add to Watchlist"}
-                                    </motion.button>
-                                </div>
-                            </form>
-                        </motion.div>
-                    ) : (
-                        <motion.div key="list-view"><MediaListView /></motion.div>
-                    )}
-                </AnimatePresence>
-                <AnimatePresence>
-                    {error && <motion.div className="message-box error"><p>{error}</p></motion.div>}
-                    {result?.message && (<motion.div className="message-box success"><h2>{result.message}</h2>{result.details && (<div className="result-details"><p><strong>Name:</strong> {result.details.series_name || result.details.movies_name || result.details.anime_name}</p><p><strong>Status:</strong> {result.details.watched === 'True' ? 'Tracked' : 'In Watchlist'}</p></div>)}</motion.div>)}
-                </AnimatePresence>
-            </motion.div>
+
+                                    <div className="input-group" style={{ flex: 'none', flexDirection: 'row', gap: '1rem', alignItems: 'flex-end', width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                                        <div style={{ display: 'flex', gap: '1rem' }}>
+                                            <button type="submit" disabled={loading || !form.mediaType || !form.mediaName} className="premium-button">
+                                                {loading ? "..." : "Track"}
+                                            </button>
+                                            <button type="button" onClick={() => handleFormSubmit(false)} disabled={loading || !form.mediaType || !form.mediaName} className="premium-button secondary">
+                                                Watchlist
+                                            </button>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', width: '100%', maxWidth: '400px' }}>
+                                            <AnimatePresence>
+                                                {isListening && liveTranscript && (
+                                                    <motion.div 
+                                                        initial={{ opacity: 0, scale: 0.9, x: -10 }} 
+                                                        animate={{ opacity: 1, scale: 1, x: 0 }} 
+                                                        exit={{ opacity: 0, scale: 0.9, x: 10 }}
+                                                        className="live-transcript-box"
+                                                    >
+                                                        {liveTranscript}
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                            <button type="button" onClick={toggleListening} className={`mic-button ${isListening ? 'listening' : ''}`} title="Use Voice to Add Media" style={{ marginLeft: 'auto' }}>
+                                                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z" /></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </motion.div>
+                        )}
+                        {activeTab === 'library' && (
+                            <motion.div key="list-view" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+                                <MediaListView />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </main>
+            </div>
+            
+            {disambiguation.isOpen && (
+                <DisambiguationModal results={disambiguation.results} onSelect={(result) => addMediaById(result.id, disambiguation.isWatched)} onViewDetails={viewDetails} onClose={() => setDisambiguation({ ...disambiguation, isOpen: false })} />
+            )}
+            {detailsItem && (
+                <MediaDetailsModal mediaName={detailsItem.name} mediaType={detailsItem.type} onClose={() => setDetailsItem(null)} />
+            )}
+            <ConfirmationModal 
+                isOpen={modalState.isOpen} title={modalState.title} message={modalState.message}
+                onConfirm={modalState.onConfirm} onCancel={() => setModalState({ ...modalState, isOpen: false })} confirmText={modalState.confirmText}
+            />
+
+
+            <AnimatePresence>
+                {error && (
+                    <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} style={{ position: 'fixed', bottom: '2rem', right: '2rem', background: 'var(--status-error)', padding: '1rem', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-glass)', zIndex: 100 }}>
+                        {error}
+                    </motion.div>
+                )}
+                {result?.message && (
+                    <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} style={{ position: 'fixed', bottom: '2rem', right: '2rem', background: 'var(--status-success)', padding: '1rem', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-glass)', zIndex: 100 }}>
+                        <strong>{result.message}</strong>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

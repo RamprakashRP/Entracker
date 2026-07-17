@@ -5,6 +5,9 @@ import dotenv from 'dotenv';
 import { google, Auth } from 'googleapis';
 import { AzureOpenAI } from 'openai';
 import axios from 'axios';
+import multer from 'multer';
+import FormData from 'form-data';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -33,6 +36,9 @@ const SHEET_CONFIG: { [key: string]: { sheetName: string; range: string; columns
 
 const mediaCache: { [key: string]: { data: any, timestamp: number } } = {};
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+const posterCache: { [key: string]: { path: string | null, timestamp: number } } = {};
+const POSTER_CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const getSheetsClient = async () => {
     let authOptions: any = { scopes: 'https://www.googleapis.com/auth/spreadsheets' };
@@ -314,6 +320,35 @@ app.get('/api/details/:mediaType/:name', async (req, res) => {
     }
 });
 
+app.get('/api/poster/:mediaType/:name', async (req, res) => {
+    const { mediaType, name } = req.params;
+    const cacheKey = `${mediaType}_${name.toLowerCase()}`;
+    
+    if (posterCache[cacheKey] && (Date.now() - posterCache[cacheKey].timestamp < POSTER_CACHE_DURATION_MS)) {
+        return res.status(200).json({ poster_path: posterCache[cacheKey].path });
+    }
+
+    if (!TMDB_API_KEY) return res.status(500).json({ error: 'TMDB key not configured.' });
+    
+    const searchPath = mediaType.includes('movie') ? 'movie' : 'tv';
+    try {
+        const searchUrl = `${TMDB_BASE_URL}/3/search/${searchPath}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(name)}`;
+        const searchResponse = await axios.get(searchUrl);
+        const item = searchResponse.data.results[0];
+        
+        let poster_path = null;
+        if (item && item.poster_path) {
+            poster_path = `/api/image-proxy?url=https://image.tmdb.org/t/p/w500${item.poster_path}`;
+        }
+        
+        posterCache[cacheKey] = { path: poster_path, timestamp: Date.now() };
+        res.status(200).json({ poster_path });
+    } catch (error: any) {
+        console.error(`Poster fetch error for ${name}:`, error.message);
+        res.status(500).json({ error: 'Failed to fetch poster from TMDB.' });
+    }
+});
+
 app.put('/update-media', async (req, res) => {
     const { rowIndex, mediaType, name, watched, watchedTill } = req.body;
     if (!rowIndex || !mediaType) { return res.status(400).json({ error: 'rowIndex and mediaType are required.' }); }
@@ -359,6 +394,155 @@ app.put('/update-media', async (req, res) => {
     } catch (error: any) {
         console.error("Update Error:", error);
         res.status(500).json({ error: 'Failed to update entry.' });
+    }
+});
+
+app.get('/api/deepgram-key', (req: Request, res: Response) => {
+    if (!process.env.DEEPGRAM_API_KEY) {
+        return res.status(500).json({ error: 'Deepgram API Key is missing.' });
+    }
+    res.json({ key: process.env.DEEPGRAM_API_KEY });
+});
+
+// Used when we ALREADY have the text from live transcription, we just need to parse it with GPT-4
+app.post('/api/voice-nlp', async (req: Request, res: Response) => {
+    const { transcript } = req.body;
+    if (!transcript) return res.status(400).json({ error: 'No transcript provided.' });
+
+    try {
+        const systemPrompt = { 
+            role: 'system' as const, 
+            content: `You are a voice command parser for a media tracking app. Extract the following from the user's spoken command:
+            - mediaType: strictly one of "series", "movie", "anime", "anime_movie". (e.g. if they say "anime", it's anime. If they say "show", it's series. If they say "film", it's movie. Best guess if unspecified).
+            - mediaName: the name of the show/movie.
+            - watched: strictly "True" or "False". If they imply they finished it or watched it all, "True". If they watched up to a point or just want to add it, "False".
+            - watchedTill: A string describing their progress (e.g., "Season 2 Episode 4", "Not Watched").
+            Return ONLY a valid JSON object with these exactly 4 keys.` 
+        };
+        const userPrompt = { role: 'user' as const, content: `Command: "${transcript}"` };
+        
+        const aiResponse = await azureOpenAI.chat.completions.create({ 
+            messages: [systemPrompt, userPrompt], 
+            model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4o-mini',
+            response_format: { type: "json_object" }
+        });
+        
+        const parsed = JSON.parse(aiResponse.choices[0]?.message?.content || '{}');
+        
+        if (!parsed.mediaName) {
+            return res.status(400).json({ error: "Could not understand the media name." });
+        }
+
+        const searchPath = parsed.mediaType.includes('movie') ? 'movie' : 'tv';
+        const searchUrl = `${TMDB_BASE_URL}/3/search/${searchPath}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(parsed.mediaName)}`;
+        const searchResponse = await axios.get(searchUrl);
+        const item = searchResponse.data.results[0];
+        
+        if (!item) {
+             return res.status(404).json({ error: `Could not find "${parsed.mediaName}" on TMDB.` });
+        }
+
+        res.status(200).json({
+            mediaType: parsed.mediaType,
+            tmdbId: item.id,
+            watched: parsed.watched,
+            watchedTill: parsed.watchedTill,
+            parsedName: parsed.mediaName,
+            officialName: item.title || item.name,
+            transcript: transcript
+        });
+    } catch (error: any) {
+        console.error("Voice parse error:", error);
+        res.status(500).json({ error: 'Failed to process voice command.' });
+    }
+});
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+app.post('/api/voice-parse', upload.single('audio'), async (req: Request, res: Response) => {
+    let transcript = req.body.transcript;
+
+    if (req.file) {
+        if (!process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY) {
+            return res.status(500).json({ error: 'No STT API key configured (GROQ_API_KEY or OPENAI_API_KEY).' });
+        }
+        
+        try {
+            const formData = new FormData();
+            formData.append('file', req.file.buffer, {
+                filename: req.file.originalname || 'audio.webm',
+                contentType: req.file.mimetype || 'audio/webm'
+            });
+            formData.append('model', process.env.GROQ_API_KEY ? 'whisper-large-v3' : 'whisper-1');
+            
+            const sttUrl = process.env.GROQ_API_KEY 
+                ? 'https://api.groq.com/openai/v1/audio/transcriptions'
+                : 'https://api.openai.com/v1/audio/transcriptions';
+                
+            const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
+
+            const sttResponse = await axios.post(sttUrl, formData, {
+                headers: {
+                    ...formData.getHeaders(),
+                    'Authorization': `Bearer ${apiKey}`
+                }
+            });
+            
+            transcript = sttResponse.data.text;
+        } catch (sttError: any) {
+            console.error("STT Error:", sttError.response?.data || sttError.message);
+            return res.status(500).json({ error: 'Failed to transcribe audio.' });
+        }
+    }
+
+    if (!transcript) return res.status(400).json({ error: 'No transcript or audio provided.' });
+
+    try {
+        const systemPrompt = { 
+            role: 'system' as const, 
+            content: `You are a voice command parser for a media tracking app. Extract the following from the user's spoken command:
+            - mediaType: strictly one of "series", "movie", "anime", "anime_movie". (e.g. if they say "anime", it's anime. If they say "show", it's series. If they say "film", it's movie. Best guess if unspecified).
+            - mediaName: the name of the show/movie.
+            - watched: strictly "True" or "False". If they imply they finished it or watched it all, "True". If they watched up to a point or just want to add it, "False".
+            - watchedTill: A string describing their progress (e.g., "Season 2 Episode 4", "Not Watched").
+            Return ONLY a valid JSON object with these exactly 4 keys.` 
+        };
+        const userPrompt = { role: 'user' as const, content: `Command: "${transcript}"` };
+        
+        const aiResponse = await azureOpenAI.chat.completions.create({ 
+            messages: [systemPrompt, userPrompt], 
+            model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4o-mini',
+            response_format: { type: "json_object" }
+        });
+        
+        const parsed = JSON.parse(aiResponse.choices[0]?.message?.content || '{}');
+        
+        if (!parsed.mediaName) {
+            return res.status(400).json({ error: "Could not understand the media name." });
+        }
+
+        const searchPath = parsed.mediaType.includes('movie') ? 'movie' : 'tv';
+        const searchUrl = `${TMDB_BASE_URL}/3/search/${searchPath}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(parsed.mediaName)}`;
+        const searchResponse = await axios.get(searchUrl);
+        const item = searchResponse.data.results[0];
+        
+        if (!item) {
+             return res.status(404).json({ error: `Could not find "${parsed.mediaName}" on TMDB.` });
+        }
+
+        res.status(200).json({
+            mediaType: parsed.mediaType,
+            tmdbId: item.id,
+            watched: parsed.watched,
+            watchedTill: parsed.watchedTill,
+            parsedName: parsed.mediaName,
+            officialName: item.title || item.name,
+            transcript: transcript // Send back the transcript so the user knows what AI heard
+        });
+    } catch (error: any) {
+        console.error("Voice parse error:", error);
+        res.status(500).json({ error: 'Failed to process voice command.' });
     }
 });
 

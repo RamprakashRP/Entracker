@@ -80,42 +80,62 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
         exit={{ opacity: 0 }}
       >
         <motion.div
-          className="modal-content franchise-details-modal-content"
-          initial={{ y: 50, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 50, opacity: 0 }}
+          className="modal-content details-modal-content"
+          initial={{ y: 50, scale: 0.95, opacity: 0 }}
+          animate={{ y: 0, scale: 1, opacity: 1 }}
+          exit={{ y: 50, scale: 0.95, opacity: 0 }}
         >
-          {loading && <p className="loading-state">Loading franchise...</p>}
-          {error && <p className="modal-error">{error}</p>}
+          {loading && <div className="loading-state">Loading franchise...</div>}
+          {error && <div className="error-state">{error}</div>}
           {!loading && !error && (
-            <div className="franchise-layout-grid">
-                <div className="franchise-info-panel">
-                    {details?.poster_path ? (
-                        <img src={details.poster_path.startsWith('/') ? `${API_BASE}${details.poster_path}` : details.poster_path} alt={details.name} className="franchise-poster"/>
-                    ) : <div className="franchise-poster-placeholder">No Image</div>}
-                    <h4>{details?.name || franchiseName}</h4>
-                    <p className="franchise-overview">{details?.overview || "No overview available."}</p>
-                    <p className="franchise-count"><strong>{movies.length}</strong> Titles in Tracker</p>
+            <>
+                <div className="details-hero" style={{ backgroundImage: `url(${details?.poster_path?.startsWith('/') ? `${API_BASE}${details.poster_path}` : details?.poster_path})` }}>
+                    <div className="details-hero-overlay">
+                        <div className="details-hero-content">
+                            {details?.poster_path ? (
+                                <img src={details.poster_path.startsWith('/') ? `${API_BASE}${details.poster_path}` : details.poster_path} alt={details.name} className="details-poster"/>
+                            ) : <div className="details-poster" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)' }}>No Image</div>}
+                            <div className="details-header-text">
+                                <h3>{details?.name || franchiseName}</h3>
+                                <div className="details-rating">
+                                    <strong>{movies.length}</strong> Titles in Tracker
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="franchise-movie-list">
-                     <ul>
-                        {movies.map((movie) => (
-                        <li key={movie.row_index}>
-                            <span
-                            className={`franchise-movie-title ${movie.watched?.toLowerCase() === 'true' ? 'watched-true' : 'watched-false'}`}
-                            onClick={() => onMovieSelect({ ...movie, media_type_key: mediaType })}
-                            >
-                            {movie.movies_name}
-                            </span>
-                        </li>
-                        ))}
-                    </ul>
+                <div className="details-body" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: '2rem' }}>
+                    <div style={{ flex: '1 1 300px' }}>
+                        <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>Overview</h4>
+                        <p className="details-overview">{details?.overview || "No overview available."}</p>
+                    </div>
+                    <div style={{ flex: '1 1 300px' }}>
+                        <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>Included Titles</h4>
+                        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: 0 }}>
+                            {movies.map((movie) => (
+                            <li key={movie.row_index}>
+                                <span
+                                style={{
+                                    display: 'block', padding: '0.75rem 1rem', background: 'var(--bg-glass-light)', 
+                                    borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s',
+                                    borderLeft: `4px solid ${movie.watched?.toLowerCase() === 'true' ? 'var(--status-success)' : 'var(--status-warning)'}`
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-glass-hover)'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-glass-light)'}
+                                onClick={(e) => { e.currentTarget.style.transform = 'scale(0.98)'; setTimeout(() => onMovieSelect({ ...movie, media_type_key: mediaType }), 100); }}
+                                >
+                                {movie.movies_name}
+                                </span>
+                            </li>
+                            ))}
+                        </ul>
+                    </div>
                 </div>
-            </div>
+                <div className="modal-actions" style={{ padding: '0 2rem 2rem 2rem', marginTop: 0 }}>
+                    <button className="premium-button secondary" onClick={onClose}>Close</button>
+                </div>
+            </>
           )}
-           <div className="modal-actions">
-                <button className="modal-button secondary" onClick={onClose}>Close</button>
-            </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
