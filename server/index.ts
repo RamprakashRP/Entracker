@@ -111,7 +111,7 @@ app.post('/add-media', async (req: Request, res: Response) => {
         }
         
         const prompt = getPromptForMediaType(mediaType, officialName);
-        const aiResponse = await azureOpenAI.chat.completions.create({ messages: prompt as any });
+        const aiResponse = await azureOpenAI.chat.completions.create({ messages: prompt as any, model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4o-mini' });
         const content = aiResponse.choices[0]?.message?.content || '{}';
         const mediaData = JSON.parse(content.match(/({[\s\S]*})/)?.[1] || '{}');
 
