@@ -74,15 +74,15 @@ body::before {
       45deg,
       transparent,
       transparent 100px,
-      rgba(239, 68, 68, 0.04) 100px,
-      rgba(239, 68, 68, 0.04) 102px
+      #FF0000 100px,
+      #FF0000 102px
     ),
     repeating-linear-gradient(
       -45deg,
       transparent,
       transparent 150px,
-      rgba(239, 68, 68, 0.04) 150px,
-      rgba(239, 68, 68, 0.04) 152px
+      #FF0000 150px,
+      #FF0000 152px
     );
   animation: moveStrings 20s linear infinite;
   pointer-events: none;
