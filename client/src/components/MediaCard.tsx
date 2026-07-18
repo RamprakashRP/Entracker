@@ -116,9 +116,11 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
                 
                 <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', padding: '1rem', background: posterPath ? 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)' : 'none' }}>
                     <h3 className="media-title" style={{ textShadow: posterPath ? '0 2px 4px rgba(0,0,0,0.8)' : 'none', margin: 0 }}>{title}</h3>
-                    <button className="media-edit-btn" onClick={(e) => onEdit && onEdit(e)} title="Edit Media" style={{ flexShrink: 0, marginLeft: '0.5rem' }}>
-                        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z" /></svg>
-                    </button>
+                    {onEdit && (
+                        <button className="media-edit-btn" onClick={(e) => onEdit(e)} title="Edit Media" style={{ flexShrink: 0, marginLeft: '0.5rem' }}>
+                            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z" /></svg>
+                        </button>
+                    )}
                 </div>
             </div>
             

@@ -8,6 +8,7 @@ import { MediaDetailsModal } from './MediaDetailsModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import DotGrid from './DotGrid';
 import { HomeView } from './HomeView';
+import { LoginModal } from './components/LoginModal';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:5000';
 
@@ -42,6 +43,43 @@ export default function App() {
     const [editingItem, setEditingItem] = useState<any | null>(null);
     const [allMediaData, setAllMediaData] = useState<FetchedMediaItem[]>([]);
     const [suggestions, setSuggestions] = useState<FetchedMediaItem[]>([]);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+    const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+    useEffect(() => {
+        const storedTheme = localStorage.getItem('entracker_theme') as 'dark' | 'light' | null;
+        if (storedTheme) {
+            setTheme(storedTheme);
+            document.documentElement.setAttribute('data-theme', storedTheme);
+        }
+
+        const token = localStorage.getItem('entracker_token');
+        if (token) {
+            setIsAdmin(true);
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+    }, []);
+
+    const handleLoginSuccess = (token: string) => {
+        localStorage.setItem('entracker_token', token);
+        setIsAdmin(true);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('entracker_token');
+        setIsAdmin(false);
+        delete axios.defaults.headers.common['Authorization'];
+        if (activeTab === 'add') setActiveTab('home');
+    };
+
+    const toggleTheme = () => {
+        const newTheme = theme === 'dark' ? 'light' : 'dark';
+        setTheme(newTheme);
+        localStorage.setItem('entracker_theme', newTheme);
+        document.documentElement.setAttribute('data-theme', newTheme);
+    };
 
     
     const [modalState, setModalState] = useState<{
@@ -343,13 +381,25 @@ export default function App() {
             <div className="content-wrapper">
                 <nav className="top-nav">
                     <div className="logo-container">
-                        <img src={'/RP.png'} alt="Entracker Logo" className="logo" />
-                        <h1>Entracker</h1>
+                        <img 
+                            src={theme === 'dark' ? '/logo-horizontal-dark.png' : '/logo-horizontal-light.png'} 
+                            alt="Entracker Logo" 
+                            className="logo"
+                            style={{ height: '36px', width: 'auto' }}
+                        />
                     </div>
                     <nav className="nav-links">
                         <button className={`nav-link ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
                         <button className={`nav-link ${activeTab === 'library' ? 'active' : ''}`} onClick={() => setActiveTab('library')}>Library</button>
-                        <button className={`nav-link ${activeTab === 'add' ? 'active' : ''}`} onClick={() => setActiveTab('add')}>Add Media</button>
+                        {isAdmin && <button className={`nav-link ${activeTab === 'add' ? 'active' : ''}`} onClick={() => setActiveTab('add')}>Add Media</button>}
+                        <button className="nav-link" onClick={toggleTheme} title="Toggle Theme" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {theme === 'dark' ? '☀️' : '🌙'}
+                        </button>
+                        {!isAdmin ? (
+                            <button className="nav-link !text-blue-400 font-semibold" onClick={() => setIsLoginModalOpen(true)}>Login</button>
+                        ) : (
+                            <button className="nav-link !text-red-400 font-semibold" onClick={handleLogout}>Logout</button>
+                        )}
                     </nav>
                 </nav>
 
@@ -434,7 +484,7 @@ export default function App() {
                         )}
                         {activeTab === 'library' && (
                             <motion.div key="list-view" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-                                <MediaListView onEditClick={(item) => setEditingItem(item)} />
+                                <MediaListView isAdmin={isAdmin} onEditClick={(item) => setEditingItem(item)} />
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -450,6 +500,12 @@ export default function App() {
             <ConfirmationModal 
                 isOpen={modalState.isOpen} title={modalState.title} message={modalState.message}
                 onConfirm={modalState.onConfirm} onCancel={() => setModalState({ ...modalState, isOpen: false })} confirmText={modalState.confirmText}
+            />
+            <LoginModal 
+                isOpen={isLoginModalOpen} 
+                onClose={() => setIsLoginModalOpen(false)} 
+                onLoginSuccess={handleLoginSuccess}
+                apiBase={API_BASE}
             />
 
 

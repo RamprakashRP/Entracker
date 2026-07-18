@@ -8,6 +8,8 @@ import axios from 'axios';
 import multer from 'multer';
 import FormData from 'form-data';
 import fs from 'fs';
+import jwt from 'jsonwebtoken';
+import { authenticateToken } from './middleware/auth';
 
 dotenv.config();
 
@@ -109,7 +111,24 @@ app.get('/api/image-proxy', async (req: Request, res: Response) => {
     }
 });
 
-app.post('/api/add-media', async (req: Request, res: Response) => {
+app.post('/api/login', (req: Request, res: Response) => {
+    const { password } = req.body;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (!adminPassword) {
+        return res.status(500).json({ error: 'Admin password not configured on server.' });
+    }
+
+    if (password === adminPassword) {
+        const secret = process.env.JWT_SECRET || 'fallback_secret_key';
+        const token = jwt.sign({ role: 'admin' }, secret, { expiresIn: '3650d' });
+        return res.json({ token });
+    }
+
+    return res.status(401).json({ error: 'Invalid password' });
+});
+
+app.post('/api/add-media', authenticateToken, async (req: Request, res: Response) => {
     const { mediaType, tmdbId, watched, watchedTill } = req.body;
     if (!mediaType || !tmdbId || watched === undefined) {
         return res.status(400).json({ error: 'mediaType, tmdbId, and watched are required.' });
@@ -351,7 +370,7 @@ app.get('/api/poster/:mediaType/:name', async (req, res) => {
     }
 });
 
-app.put('/api/update-media', async (req, res) => {
+app.put('/api/update-media', authenticateToken, async (req, res) => {
     const { rowIndex, mediaType, name, watched, watchedTill } = req.body;
     if (!rowIndex || !mediaType) { return res.status(400).json({ error: 'rowIndex and mediaType are required.' }); }
 
@@ -421,7 +440,7 @@ app.get('/api/deepgram-key', (req: Request, res: Response) => {
 });
 
 // Used when we ALREADY have the text from live transcription, we just need to parse it with GPT-4
-app.post('/api/voice-nlp', async (req: Request, res: Response) => {
+app.post('/api/voice-nlp', authenticateToken, async (req: Request, res: Response) => {
     const { transcript } = req.body;
     if (!transcript) return res.status(400).json({ error: 'No transcript provided.' });
 
@@ -476,7 +495,7 @@ app.post('/api/voice-nlp', async (req: Request, res: Response) => {
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-app.post('/api/voice-parse', upload.single('audio'), async (req: Request, res: Response) => {
+app.post('/api/voice-parse', authenticateToken, upload.single('audio'), async (req: Request, res: Response) => {
     let transcript = req.body.transcript;
 
     if (req.file) {

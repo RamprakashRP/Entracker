@@ -22,11 +22,12 @@ interface MediaItem {
 }
 
 interface MediaListViewProps {
+    isAdmin?: boolean;
     onDetailsClick?: (item: MediaItem) => void;
     onEditClick?: (item: MediaItem) => void;
 }
 
-const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditClick }) => {
+const MediaListView: React.FC<MediaListViewProps> = ({ isAdmin = false, onDetailsClick, onEditClick }) => {
     const [selectedCategories, setSelectedCategories] = useState<ListMediaType[]>(['series', 'movie', 'anime', 'anime_movie']);
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['watched', 'watchlist']);
     const [mediaList, setMediaList] = useState<MediaItem[]>([]);
@@ -297,13 +298,13 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                                 </button>
                                 {showTagMenu && (
                                     <div className="multi-select-menu" style={{ maxHeight: '350px', display: 'flex', flexDirection: 'column' }}>
-                                        <div style={{ padding: '0.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', position: 'sticky', top: 0, background: 'rgba(20, 20, 30, 0.95)', zIndex: 2 }}>
+                                        <div style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-glass)', position: 'sticky', top: 0, background: 'var(--bg-tertiary)', zIndex: 2 }}>
                                             <input 
                                                 type="text" 
                                                 placeholder="Search tags..." 
                                                 value={tagSearchQuery}
                                                 onChange={(e) => setTagSearchQuery(e.target.value)}
-                                                style={{ width: '100%', padding: '0.5rem', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff' }}
+                                                style={{ width: '100%', padding: '0.5rem', background: 'var(--bg-glass-light)', border: '1px solid var(--border-glass)', borderRadius: '6px', color: 'var(--text-primary)' }}
                                                 onClick={(e) => e.stopPropagation()}
                                             />
                                         </div>
@@ -432,7 +433,7 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                                         item={item} 
                                         selectedListType={item.media_type_key} 
                                         onClick={() => { onDetailsClick?.(item); setCameFromFranchise(null); setDetailsItem(item); }}
-                                        onEdit={(e) => { e.stopPropagation(); onEditClick?.(item); }}
+                                        onEdit={isAdmin ? (e) => { e.stopPropagation(); onEditClick?.(item); } : undefined}
                                         onFranchiseClick={(franchise, e) => { e.stopPropagation(); handleFranchiseClick(franchise, item.media_type_key as 'movie'|'anime_movie'); }}
                                     />
                                 ))}
@@ -462,9 +463,11 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                                                 </span>
                                             </div>
                                             <div>
-                                                <button className="media-edit-btn" style={{ position: 'static', background: 'transparent' }} onClick={(e) => { e.stopPropagation(); onEditClick?.(item); }}>
-                                                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z" /></svg>
-                                                </button>
+                                                {isAdmin && (
+                                                    <button className="media-edit-btn" style={{ position: 'static', background: 'transparent' }} onClick={(e) => { e.stopPropagation(); onEditClick?.(item); }}>
+                                                        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z" /></svg>
+                                                    </button>
+                                                )}
                                             </div>
                                         </motion.div>
                                     );

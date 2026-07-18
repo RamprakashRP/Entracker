@@ -1158,3 +1158,34 @@ h1, h2, h3, h4, h5, h6 {
   width: 16px;
   height: 16px;
 }
+
+[data-theme="light"] {
+  --bg-primary: #F1F5F9;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #E2E8F0;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --bg-glass-light: rgba(0, 0, 0, 0.05);
+  --bg-glass-hover: rgba(0, 0, 0, 0.1);
+
+  --accent-primary: #7C3AED;
+  --accent-primary-hover: #6D28D9;
+  --accent-secondary: #0891B2;
+  --accent-gradient: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  --accent-gradient-hover: linear-gradient(135deg, var(--accent-primary-hover), #0E7490);
+
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+
+  --border-glass: rgba(0, 0, 0, 0.15);
+  --border-focus: rgba(124, 58, 237, 0.5);
+
+  --status-success: #059669;
+  --status-success-bg: rgba(5, 150, 105, 0.15);
+  --status-warning: #D97706;
+  --status-warning-bg: rgba(217, 119, 6, 0.15);
+  --status-error: #DC2626;
+
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px rgba(124, 58, 237, 0.15);
+}
