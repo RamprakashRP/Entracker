@@ -43,6 +43,8 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
     const [showTagMenu, setShowTagMenu] = useState(false);
     const [tagSearchQuery, setTagSearchQuery] = useState("");
     const [searchSuggestions, setSearchSuggestions] = useState<MediaItem[]>([]);
+    const [focusedSuggestionIndex, setFocusedSuggestionIndex] = useState(-1);
+    const [filteredMediaList, setFilteredMediaList] = useState<MediaItem[]>([]);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const searchContainerRef = useRef<HTMLDivElement>(null);
     const sortMenuRef = useRef<HTMLDivElement>(null);
@@ -96,20 +98,43 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setSearchTerm(value);
+        setFocusedSuggestionIndex(-1);
         if (value.length > 0 && mediaList.length > 0) {
             setSearchSuggestions(mediaList.filter(item => {
-                const nameKey = item.media_type_key.includes('movie') ? 'movies_name' : `${item.media_type_key}_name`;
-                return item[nameKey]?.toLowerCase().includes(value.toLowerCase());
+                const searchableText = [
+                    item.series_name,
+                    item.movies_name,
+                    item.anime_name,
+                    item.franchise,
+                    item.series_status
+                ].filter(Boolean).join(' ').toLowerCase();
+                return searchableText.includes(value.toLowerCase().trim());
             }).slice(0, 5));
         } else {
             setSearchSuggestions([]);
         }
     };
     
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (searchSuggestions.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setFocusedSuggestionIndex(prev => (prev < searchSuggestions.length - 1 ? prev + 1 : prev));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setFocusedSuggestionIndex(prev => (prev > 0 ? prev - 1 : 0));
+            } else if (e.key === 'Enter' && focusedSuggestionIndex >= 0) {
+                e.preventDefault();
+                handleSuggestionClick(searchSuggestions[focusedSuggestionIndex]);
+            }
+        }
+    };
+    
     const handleSuggestionClick = (item: MediaItem) => {
         const nameKey = item.media_type_key.includes('movie') ? 'movies_name' : `${item.media_type_key}_name`;
-        setSearchTerm(item[nameKey] || '');
+        setSearchTerm(item[nameKey] ? String(item[nameKey]) : '');
         setSearchSuggestions([]);
+        setFocusedSuggestionIndex(-1);
     };
 
     const availableTags = useMemo(() => {
@@ -122,14 +147,15 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
         return Array.from(tags).sort();
     }, [mediaList]);
 
-    const filteredTableData = useMemo(() => {
+    useEffect(() => {
+        if (mediaList.length === 0) return;
+        
         let result = mediaList.filter(item => selectedCategories.includes(item.media_type_key));
         
         // Search Verification (Bulletproof Engine)
         if (searchTerm && searchTerm.trim() !== '') {
             const lowerSearchTerm = searchTerm.toLowerCase().trim();
             result = result.filter(item => {
-                // Concatenate all potential searchable fields into one massive string
                 const searchableText = [
                     item.series_name,
                     item.movies_name,
@@ -147,7 +173,6 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
             result = result.filter(item => {
                 if (!item.franchise || item.franchise.toLowerCase() === 'standalone') return false;
                 const itemTags = item.franchise.split(',').map((t: string) => t.trim());
-                // Return true if the item has ANY of the selected tags
                 return selectedTags.some(tag => itemTags.includes(tag));
             });
         }
@@ -168,27 +193,28 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                 return isNaN(time) ? 0 : time;
             };
 
-            const nameKeyA = (a.media_type_key === 'movie' || a.media_type_key === 'anime_movie') ? 'movies_name' : `${a.media_type_key}_name`;
-            const nameKeyB = (b.media_type_key === 'movie' || b.media_type_key === 'anime_movie') ? 'movies_name' : `${b.media_type_key}_name`;
-            
-            if (sortOption === 'name-asc') return (a[nameKeyA] || '').localeCompare(b[nameKeyB] || '');
-            if (sortOption === 'name-desc') return (b[nameKeyB] || '').localeCompare(a[nameKeyA] || '');
+            if (sortOption === 'recently-updated') {
+                const timeA = getValidTime(a.update);
+                const timeB = getValidTime(b.update);
+                if (timeA !== timeB) return timeB - timeA;
+                return (b.row_index || 0) - (a.row_index || 0);
+            }
+            if (sortOption === 'name-asc' || sortOption === 'name-desc') {
+                const nameA = String(a.series_name || a.movies_name || a.anime_name || '').toLowerCase();
+                const nameB = String(b.series_name || b.movies_name || b.anime_name || '').toLowerCase();
+                if (sortOption === 'name-asc') return nameA.localeCompare(nameB);
+                return nameB.localeCompare(nameA);
+            }
             if (sortOption === 'date-new') {
                 return getValidTime(b.release_date) - getValidTime(a.release_date);
             }
             if (sortOption === 'date-old') {
                 return getValidTime(a.release_date) - getValidTime(b.release_date);
             }
-            if (sortOption === 'recently-updated') {
-                const dA = getValidTime(a.update);
-                const dB = getValidTime(b.update);
-                if (dA !== dB) return dB - dA;
-                return b.row_index - a.row_index;
-            }
             return 0;
         });
 
-        return result;
+        setFilteredMediaList(result);
     }, [mediaList, searchTerm, selectedCategories, selectedStatuses, selectedTags, sortOption]);
 
     const handleFranchiseClick = (franchiseName: string, type: 'movie' | 'anime_movie') => {
@@ -338,12 +364,30 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
 
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', width: '100%', maxWidth: '400px' }}>
                         <div className="search-bar-container" ref={searchContainerRef} style={{ margin: 0, flex: 1 }}>
-                            <input type="text" placeholder="Search..." className="search-input" value={searchTerm} onChange={handleSearchChange} disabled={loadingList || mediaList.length === 0} autoComplete="off" />
-                            <svg className="search-icon" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            <input 
+                                type="text" 
+                                placeholder="Search..." 
+                                className="search-input" 
+                                value={searchTerm} 
+                                onChange={handleSearchChange}
+                                onKeyDown={handleKeyDown} 
+                                disabled={loadingList || mediaList.length === 0} 
+                                autoComplete="off" 
+                            />
+                            <svg className="search-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" /></svg>
                             <AnimatePresence>
                                 {searchSuggestions.length > 0 && (
                                     <motion.ul initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="suggestions-list">
-                                        {searchSuggestions.map((item) => ( <li key={item.row_index} onClick={() => handleSuggestionClick(item)}>{item.series_name || item.movies_name || item.anime_name}</li> ))}
+                                        {searchSuggestions.map((item, index) => ( 
+                                            <li 
+                                                key={item.row_index} 
+                                                onClick={() => handleSuggestionClick(item)}
+                                                style={{ background: index === focusedSuggestionIndex ? 'rgba(255,255,255,0.1)' : 'transparent', cursor: 'pointer' }}
+                                                onMouseEnter={() => setFocusedSuggestionIndex(index)}
+                                            >
+                                                {item.series_name || item.movies_name || item.anime_name}
+                                            </li> 
+                                        ))}
                                     </motion.ul>
                                 )}
                             </AnimatePresence>
@@ -371,13 +415,13 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                                 <p>{listError}</p>
                                 <button className="premium-button" onClick={fetchAllMedia}>Retry</button>
                             </div>
-                        ) : filteredTableData.length === 0 ? (
+                        ) : filteredMediaList.length === 0 ? (
                             <div className="empty-state">
                                 <p>No media found matching your filters.</p>
                             </div>
                         ) : viewMode === 'grid' ? (
                             <motion.div key="grid" className="media-grid" variants={{ show: { transition: { staggerChildren: 0.05 } } }} initial="hidden" animate="show">
-                                {filteredTableData.map((item) => (
+                                {filteredMediaList.map((item) => (
                                     <MediaCard 
                                         key={item.row_index} 
                                         item={item} 
@@ -390,7 +434,7 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                             </motion.div>
                         ) : (
                             <motion.div key="list" className="compact-list-container" variants={{ show: { transition: { staggerChildren: 0.03 } } }} initial="hidden" animate="show">
-                                {filteredTableData.map((item) => {
+                                {filteredMediaList.map((item) => {
                                     const title = item.series_name || item.movies_name || item.anime_name;
                                     const isWatched = (typeof item.watched === 'string' ? item.watched.toLowerCase() === 'true' : !!item.watched);
                                     return (
