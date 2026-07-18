@@ -366,7 +366,7 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                         <div className="search-bar-container" ref={searchContainerRef} style={{ margin: 0, flex: 1 }}>
                             <input 
                                 type="text" 
-                                placeholder="Search..." 
+                                placeholder="Search library..." 
                                 className="search-input" 
                                 value={searchTerm} 
                                 onChange={handleSearchChange}
