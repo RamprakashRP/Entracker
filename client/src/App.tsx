@@ -387,7 +387,7 @@ export default function App() {
                     <img 
                         src={theme === 'dark' ? '/logo-horizontal-dark.png' : '/logo-horizontal-light.png'} 
                         alt="Entracker Logo" 
-                        style={{ height: '64px', width: 'auto' }}
+                        style={{ height: '44px', width: 'auto' }}
                     />
                 </div>
                 <nav className="top-nav" style={{ justifyContent: 'space-between', padding: '1rem 3rem' }}>
