@@ -137,12 +137,28 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, selectedListType, on
                     </>
                 ) : (
                     <>
-                        <div className="media-meta-row"><span className="meta-label">Franchise</span>
-                        {item.franchise && item.franchise.toLowerCase() !== 'standalone' ? (
-                            <span className="meta-value franchise-link" onClick={(e) => onFranchiseClick && onFranchiseClick(item.franchise, e)}>{item.franchise}</span>
-                        ) : (
-                            <span className="meta-value">Standalone</span>
-                        )}
+                        <div className="media-meta-row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <span className="meta-label">Tags</span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'flex-end', width: '100%' }}>
+                                {item.franchise && item.franchise.toLowerCase() !== 'standalone' ? (
+                                    item.franchise.split(',').map((tag: string, i: number) => {
+                                        const trimmedTag = tag.trim();
+                                        if (!trimmedTag) return null;
+                                        return (
+                                            <span 
+                                                key={i} 
+                                                className="tag-pill clickable"
+                                                onClick={(e) => onFranchiseClick?.(trimmedTag, e)}
+                                                style={{ fontSize: '0.75rem', padding: '2px 8px', background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-primary)', borderRadius: '12px', border: '1px solid rgba(6, 182, 212, 0.2)' }}
+                                            >
+                                                {trimmedTag}
+                                            </span>
+                                        );
+                                    })
+                                ) : (
+                                    <span className="meta-value">Standalone</span>
+                                )}
+                            </div>
                         </div>
                         <div className="media-meta-row"><span className="meta-label">Next Part</span><span className="meta-value">{item.next_part || 'N/A'}</span></div>
                     </>

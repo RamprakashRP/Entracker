@@ -40,9 +40,12 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
     const [showCategoryMenu, setShowCategoryMenu] = useState(false);
     const [showStatusMenu, setShowStatusMenu] = useState(false);
     const [showSortMenu, setShowSortMenu] = useState(false);
+    const [showTagMenu, setShowTagMenu] = useState(false);
     const [searchSuggestions, setSearchSuggestions] = useState<MediaItem[]>([]);
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const searchContainerRef = useRef<HTMLDivElement>(null);
     const sortMenuRef = useRef<HTMLDivElement>(null);
+    const tagMenuRef = useRef<HTMLDivElement>(null);
     
     const [selectedFranchise, setSelectedFranchise] = useState<{name: string, type: 'movie' | 'anime_movie'} | null>(null);
     const [detailsItem, setDetailsItem] = useState<MediaItem | null>(null);
@@ -55,6 +58,9 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
             }
             if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
                 setShowSortMenu(false);
+            }
+            if (tagMenuRef.current && !tagMenuRef.current.contains(event.target as Node)) {
+                setShowTagMenu(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -105,20 +111,38 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
         setSearchSuggestions([]);
     };
 
+    const availableTags = useMemo(() => {
+        const tags = new Set<string>();
+        mediaList.forEach(item => {
+            if (item.franchise && item.franchise.toLowerCase() !== 'standalone') {
+                item.franchise.split(',').forEach((t: string) => tags.add(t.trim()));
+            }
+        });
+        return Array.from(tags).sort();
+    }, [mediaList]);
+
     const filteredTableData = useMemo(() => {
         let result = mediaList.filter(item => selectedCategories.includes(item.media_type_key));
         
-        // Search
+        // Search Verification (Bulletproof)
         if (searchTerm && searchTerm.trim() !== '') {
             const lowerSearchTerm = searchTerm.toLowerCase().trim();
             result = result.filter(item => {
                 let nameKey = `${item.media_type_key}_name`;
-                if (item.media_type_key === 'movie' || item.media_type_key === 'anime_movie') {
-                    nameKey = 'movies_name';
-                }
-                const title = item[nameKey];
-                if (!title || typeof title !== 'string') return false;
-                return title.toLowerCase().includes(lowerSearchTerm);
+                if (item.media_type_key === 'movie' || item.media_type_key === 'anime_movie') nameKey = 'movies_name';
+                
+                const title = item[nameKey] ? String(item[nameKey]).toLowerCase() : '';
+                return title.includes(lowerSearchTerm);
+            });
+        }
+        
+        // Filter by Tags
+        if (selectedTags.length > 0) {
+            result = result.filter(item => {
+                if (!item.franchise || item.franchise.toLowerCase() === 'standalone') return false;
+                const itemTags = item.franchise.split(',').map((t: string) => t.trim());
+                // Return true if the item has ANY of the selected tags
+                return selectedTags.some(tag => itemTags.includes(tag));
             });
         }
         
@@ -159,7 +183,7 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
         });
 
         return result;
-    }, [mediaList, searchTerm, selectedCategories, selectedStatuses, sortOption]);
+    }, [mediaList, searchTerm, selectedCategories, selectedStatuses, selectedTags, sortOption]);
 
     const handleFranchiseClick = (franchiseName: string, type: 'movie' | 'anime_movie') => {
         if (franchiseName && franchiseName.toLowerCase() !== 'standalone') {
@@ -233,6 +257,27 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                                 </div>
                             )}
                         </div>
+
+                        {availableTags.length > 0 && (
+                            <div className="multi-select-container" ref={tagMenuRef}>
+                                <button className="multi-select-button premium-select" onClick={() => setShowTagMenu(!showTagMenu)} disabled={loadingList}>
+                                    Tags ({selectedTags.length})
+                                </button>
+                                {showTagMenu && (
+                                    <div className="multi-select-menu" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                        {availableTags.map(tag => (
+                                            <label key={tag} className="multi-select-option" style={{ padding: '0.5rem 1rem' }}>
+                                                <input type="checkbox" checked={selectedTags.includes(tag)} onChange={() => {
+                                                    if (selectedTags.includes(tag)) setSelectedTags(selectedTags.filter(t => t !== tag));
+                                                    else setSelectedTags([...selectedTags, tag]);
+                                                }} />
+                                                <span className="tag-pill" style={{ fontSize: '0.8rem', padding: '2px 8px', background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-primary)', borderRadius: '12px' }}>{tag}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="multi-select-container" ref={sortMenuRef}>
                             <button className="multi-select-button premium-select" onClick={() => setShowSortMenu(!showSortMenu)} disabled={loadingList}>

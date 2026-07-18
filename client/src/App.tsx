@@ -346,11 +346,11 @@ export default function App() {
                         <img src={'/RP.png'} alt="Entracker Logo" className="logo" />
                         <h1>Entracker</h1>
                     </div>
-                    <div className="nav-links">
+                    <nav className="nav-links">
                         <button className={`nav-link ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
                         <button className={`nav-link ${activeTab === 'library' ? 'active' : ''}`} onClick={() => setActiveTab('library')}>Library</button>
                         <button className={`nav-link ${activeTab === 'add' ? 'active' : ''}`} onClick={() => setActiveTab('add')}>Add Media</button>
-                    </div>
+                    </nav>
                 </nav>
 
                 <main className="main-content">
@@ -434,7 +434,7 @@ export default function App() {
                         )}
                         {activeTab === 'library' && (
                             <motion.div key="list-view" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-                                <MediaListView />
+                                <MediaListView onEditClick={(item) => setEditingItem(item)} />
                             </motion.div>
                         )}
                     </AnimatePresence>
