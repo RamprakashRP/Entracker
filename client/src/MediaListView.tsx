@@ -245,14 +245,7 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
 
     return (
         <>
-            <div style={{ background: '#ff0000', color: 'white', padding: '10px', fontSize: '14px', position: 'fixed', top: '60px', left: 0, right: 0, zIndex: 99999 }}>
-                DEBUG STATE: searchTerm="{searchTerm}", 
-                trim="{searchTerm.trim()}", 
-                lower="{searchTerm.toLowerCase().trim()}", 
-                filteredLength={filteredMediaList.length}, 
-                firstItem={filteredMediaList[0] ? (filteredMediaList[0].series_name || filteredMediaList[0].movies_name) : 'none'}
-            </div>
-            <motion.div className="media-list-view-container" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ paddingTop: '40px' }}>
+            <motion.div className="media-list-view-container" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <div className="library-control-bar">
                     <div className="library-filters">
                         <div className="multi-select-container">
