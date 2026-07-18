@@ -245,7 +245,14 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
 
     return (
         <>
-            <motion.div className="media-list-view-container" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div style={{ background: '#ff0000', color: 'white', padding: '10px', fontSize: '14px', position: 'fixed', top: '60px', left: 0, right: 0, zIndex: 99999 }}>
+                DEBUG STATE: searchTerm="{searchTerm}", 
+                trim="{searchTerm.trim()}", 
+                lower="{searchTerm.toLowerCase().trim()}", 
+                filteredLength={filteredMediaList.length}, 
+                firstItem={filteredMediaList[0] ? (filteredMediaList[0].series_name || filteredMediaList[0].movies_name) : 'none'}
+            </div>
+            <motion.div className="media-list-view-container" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ paddingTop: '40px' }}>
                 <div className="library-control-bar">
                     <div className="library-filters">
                         <div className="multi-select-container">
@@ -374,6 +381,11 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                                 disabled={loadingList || mediaList.length === 0} 
                                 autoComplete="off" 
                             />
+                            {searchTerm && (
+                                <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'red', fontSize: '0.8rem', zIndex: 10 }}>
+                                    Search is: "{searchTerm}"
+                                </span>
+                            )}
                             <svg className="search-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" /></svg>
                             <AnimatePresence>
                                 {searchSuggestions.length > 0 && (
@@ -423,7 +435,7 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                             <motion.div key="grid" className="media-grid" variants={{ show: { transition: { staggerChildren: 0.05 } } }} initial="hidden" animate="show">
                                 {filteredMediaList.map((item) => (
                                     <MediaCard 
-                                        key={item.row_index} 
+                                        key={`${item.media_type_key}-${item.row_index}`} 
                                         item={item} 
                                         selectedListType={item.media_type_key} 
                                         onClick={() => { onDetailsClick?.(item); setCameFromFranchise(null); setDetailsItem(item); }}
