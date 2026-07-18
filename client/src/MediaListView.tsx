@@ -39,8 +39,10 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
     // UI state for custom multi-select dropdowns
     const [showCategoryMenu, setShowCategoryMenu] = useState(false);
     const [showStatusMenu, setShowStatusMenu] = useState(false);
+    const [showSortMenu, setShowSortMenu] = useState(false);
     const [searchSuggestions, setSearchSuggestions] = useState<MediaItem[]>([]);
     const searchContainerRef = useRef<HTMLDivElement>(null);
+    const sortMenuRef = useRef<HTMLDivElement>(null);
     
     const [selectedFranchise, setSelectedFranchise] = useState<{name: string, type: 'movie' | 'anime_movie'} | null>(null);
     const [detailsItem, setDetailsItem] = useState<MediaItem | null>(null);
@@ -51,9 +53,12 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
             if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
                 setSearchSuggestions([]);
             }
+            if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+                setShowSortMenu(false);
+            }
         };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     const fetchAllMedia = async () => {
@@ -104,10 +109,16 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
         let result = mediaList.filter(item => selectedCategories.includes(item.media_type_key));
         
         // Search
-        if (searchTerm) {
+        if (searchTerm && searchTerm.trim() !== '') {
+            const lowerSearchTerm = searchTerm.toLowerCase().trim();
             result = result.filter(item => {
-                const nameKey = item.media_type_key.includes('movie') ? 'movies_name' : `${item.media_type_key}_name`;
-                return item[nameKey]?.toLowerCase().includes(searchTerm.toLowerCase());
+                let nameKey = `${item.media_type_key}_name`;
+                if (item.media_type_key === 'movie' || item.media_type_key === 'anime_movie') {
+                    nameKey = 'movies_name';
+                }
+                const title = item[nameKey];
+                if (!title || typeof title !== 'string') return false;
+                return title.toLowerCase().includes(lowerSearchTerm);
             });
         }
         
@@ -122,13 +133,13 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
         // Sort
         result.sort((a, b) => {
             const getValidTime = (dateStr: any) => {
-                if (!dateStr) return 0;
+                if (!dateStr || dateStr === 'N/A' || dateStr === 'Invalid Date') return 0;
                 const time = new Date(dateStr).getTime();
                 return isNaN(time) ? 0 : time;
             };
 
-            const nameKeyA = a.media_type_key.includes('movie') ? 'movies_name' : `${a.media_type_key}_name`;
-            const nameKeyB = b.media_type_key.includes('movie') ? 'movies_name' : `${b.media_type_key}_name`;
+            const nameKeyA = (a.media_type_key === 'movie' || a.media_type_key === 'anime_movie') ? 'movies_name' : `${a.media_type_key}_name`;
+            const nameKeyB = (b.media_type_key === 'movie' || b.media_type_key === 'anime_movie') ? 'movies_name' : `${b.media_type_key}_name`;
             
             if (sortOption === 'name-asc') return (a[nameKeyA] || '').localeCompare(b[nameKeyB] || '');
             if (sortOption === 'name-desc') return (b[nameKeyB] || '').localeCompare(a[nameKeyA] || '');
@@ -223,13 +234,38 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                             )}
                         </div>
 
-                        <select className="premium-select" value={sortOption} onChange={(e) => setSortOption(e.target.value)} disabled={loadingList}>
-                            <option value="recently-updated">Recently Updated</option>
-                            <option value="name-asc">Name (A-Z)</option>
-                            <option value="name-desc">Name (Z-A)</option>
-                            <option value="date-new">Release (Newest)</option>
-                            <option value="date-old">Release (Oldest)</option>
-                        </select>
+                        <div className="multi-select-container" ref={sortMenuRef}>
+                            <button className="multi-select-button premium-select" onClick={() => setShowSortMenu(!showSortMenu)} disabled={loadingList}>
+                                {sortOption === 'recently-updated' ? 'Recently Updated' :
+                                 sortOption === 'name-asc' ? 'Name (A-Z)' :
+                                 sortOption === 'name-desc' ? 'Name (Z-A)' :
+                                 sortOption === 'date-new' ? 'Release (Newest)' : 'Release (Oldest)'}
+                            </button>
+                            {showSortMenu && (
+                                <div className="multi-select-menu" style={{ minWidth: '180px' }}>
+                                    <label className="multi-select-option" style={{ padding: '0.75rem 1rem' }}>
+                                        <input type="radio" name="sortGroup" checked={sortOption === 'recently-updated'} onChange={() => { setSortOption('recently-updated'); setShowSortMenu(false); }} />
+                                        <span>Recently Updated</span>
+                                    </label>
+                                    <label className="multi-select-option" style={{ padding: '0.75rem 1rem' }}>
+                                        <input type="radio" name="sortGroup" checked={sortOption === 'name-asc'} onChange={() => { setSortOption('name-asc'); setShowSortMenu(false); }} />
+                                        <span>Name (A-Z)</span>
+                                    </label>
+                                    <label className="multi-select-option" style={{ padding: '0.75rem 1rem' }}>
+                                        <input type="radio" name="sortGroup" checked={sortOption === 'name-desc'} onChange={() => { setSortOption('name-desc'); setShowSortMenu(false); }} />
+                                        <span>Name (Z-A)</span>
+                                    </label>
+                                    <label className="multi-select-option" style={{ padding: '0.75rem 1rem' }}>
+                                        <input type="radio" name="sortGroup" checked={sortOption === 'date-new'} onChange={() => { setSortOption('date-new'); setShowSortMenu(false); }} />
+                                        <span>Release (Newest)</span>
+                                    </label>
+                                    <label className="multi-select-option" style={{ padding: '0.75rem 1rem' }}>
+                                        <input type="radio" name="sortGroup" checked={sortOption === 'date-old'} onChange={() => { setSortOption('date-old'); setShowSortMenu(false); }} />
+                                        <span>Release (Oldest)</span>
+                                    </label>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', width: '100%', maxWidth: '400px' }}>

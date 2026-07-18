@@ -127,6 +127,7 @@ export default function App() {
                 rowIndex: rowIndex, mediaType: form.mediaType, watched: 'True',
             });
             setResult({ message: `"${form.mediaName}" updated to "Watched"!` });
+            setTimeout(() => setResult(null), 5000);
             await fetchAllMediaData();
             setForm(initialForm);
         } catch (err: any) {
@@ -143,6 +144,7 @@ export default function App() {
                 mediaType, tmdbId, watched, watchedTill
             });
             setResult({ message: response.data.message, details: response.data.data });
+            setTimeout(() => setResult(null), 5000);
             setForm(initialForm);
             fetchAllMediaData();
         } catch (err: any) {
