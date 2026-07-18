@@ -41,6 +41,7 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
     const [showStatusMenu, setShowStatusMenu] = useState(false);
     const [showSortMenu, setShowSortMenu] = useState(false);
     const [showTagMenu, setShowTagMenu] = useState(false);
+    const [tagSearchQuery, setTagSearchQuery] = useState("");
     const [searchSuggestions, setSearchSuggestions] = useState<MediaItem[]>([]);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -124,15 +125,20 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
     const filteredTableData = useMemo(() => {
         let result = mediaList.filter(item => selectedCategories.includes(item.media_type_key));
         
-        // Search Verification (Bulletproof)
+        // Search Verification (Bulletproof Engine)
         if (searchTerm && searchTerm.trim() !== '') {
             const lowerSearchTerm = searchTerm.toLowerCase().trim();
             result = result.filter(item => {
-                let nameKey = `${item.media_type_key}_name`;
-                if (item.media_type_key === 'movie' || item.media_type_key === 'anime_movie') nameKey = 'movies_name';
+                // Concatenate all potential searchable fields into one massive string
+                const searchableText = [
+                    item.series_name,
+                    item.movies_name,
+                    item.anime_name,
+                    item.franchise,
+                    item.series_status
+                ].filter(Boolean).join(' ').toLowerCase();
                 
-                const title = item[nameKey] ? String(item[nameKey]).toLowerCase() : '';
-                return title.includes(lowerSearchTerm);
+                return searchableText.includes(lowerSearchTerm);
             });
         }
         
@@ -264,16 +270,33 @@ const MediaListView: React.FC<MediaListViewProps> = ({ onDetailsClick, onEditCli
                                     Tags ({selectedTags.length})
                                 </button>
                                 {showTagMenu && (
-                                    <div className="multi-select-menu" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                                        {availableTags.map(tag => (
-                                            <label key={tag} className="multi-select-option" style={{ padding: '0.5rem 1rem' }}>
-                                                <input type="checkbox" checked={selectedTags.includes(tag)} onChange={() => {
-                                                    if (selectedTags.includes(tag)) setSelectedTags(selectedTags.filter(t => t !== tag));
-                                                    else setSelectedTags([...selectedTags, tag]);
-                                                }} />
-                                                <span className="tag-pill" style={{ fontSize: '0.8rem', padding: '2px 8px', background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-primary)', borderRadius: '12px' }}>{tag}</span>
-                                            </label>
-                                        ))}
+                                    <div className="multi-select-menu" style={{ maxHeight: '350px', display: 'flex', flexDirection: 'column' }}>
+                                        <div style={{ padding: '0.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', position: 'sticky', top: 0, background: 'rgba(20, 20, 30, 0.95)', zIndex: 2 }}>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search tags..." 
+                                                value={tagSearchQuery}
+                                                onChange={(e) => setTagSearchQuery(e.target.value)}
+                                                style={{ width: '100%', padding: '0.5rem', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff' }}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
+                                        <div style={{ overflowY: 'auto', flex: 1 }}>
+                                            {availableTags
+                                                .filter(tag => tag.toLowerCase().includes(tagSearchQuery.toLowerCase().trim()))
+                                                .map(tag => (
+                                                <label key={tag} className="multi-select-option" style={{ padding: '0.5rem 1rem' }}>
+                                                    <input type="checkbox" checked={selectedTags.includes(tag)} onChange={() => {
+                                                        if (selectedTags.includes(tag)) setSelectedTags(selectedTags.filter(t => t !== tag));
+                                                        else setSelectedTags([...selectedTags, tag]);
+                                                    }} />
+                                                    <span className="tag-pill" style={{ fontSize: '0.8rem', padding: '2px 8px', background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-primary)', borderRadius: '12px' }}>{tag}</span>
+                                                </label>
+                                            ))}
+                                            {availableTags.filter(tag => tag.toLowerCase().includes(tagSearchQuery.toLowerCase().trim())).length === 0 && (
+                                                <div style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem' }}>No tags found.</div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
