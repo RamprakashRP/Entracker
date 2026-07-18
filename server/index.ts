@@ -60,7 +60,7 @@ const getPromptForMediaType = (mediaType: string, mediaName: string) => {
     if (mediaType.includes('movie')) {
         userMessageContent += `JSON keys: "next_part" (string, "Yes" or "No").`;
     } else {
-        userMessageContent += `JSON keys: "series_status" (string, "On Going" or "Completed"), "next_season" (string, "Yes" or "No"), ${commonKeys}`;
+        userMessageContent += `JSON keys: "series_status" (string, "On Going" or "Completed"), "season_status" (string, "Completed", "On Going", or "Upcoming"), "next_season" (string, "Yes" or "No"), ${commonKeys}`;
     }
     return [commonSystemMessage, { role: 'user' as const, content: userMessageContent }];
 };
@@ -360,34 +360,48 @@ app.put('/api/update-media', async (req, res) => {
         const sheetConfig = SHEET_CONFIG[mediaType];
         if (!sheetConfig) throw new Error(`Invalid mediaType: ${mediaType}`);
 
-        const updates = [];
-        const nameColLetter = String.fromCharCode('A'.charCodeAt(0) + sheetConfig.columns.indexOf(sheetConfig.columns[0]));
-        const watchedColLetter = String.fromCharCode('A'.charCodeAt(0) + sheetConfig.columns.indexOf('watched'));
-        const watchedTillColLetter = String.fromCharCode('A'.charCodeAt(0) + sheetConfig.columns.indexOf('watched_till'));
-
+        let mediaData: any = {};
         if (name) {
-            updates.push(sheets.spreadsheets.values.update({
-                spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${nameColLetter}${rowIndex}`,
-                valueInputOption: 'USER_ENTERED', requestBody: { values: [[name]] }
-            }));
+            try {
+                const prompt = getPromptForMediaType(mediaType, name);
+                const aiResponse = await azureOpenAI.chat.completions.create({ messages: prompt as any, model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4o-mini' });
+                const content = aiResponse.choices[0]?.message?.content || '{}';
+                mediaData = JSON.parse(content.match(/({[\s\S]*})/)?.[1] || '{}');
+            } catch (aiErr) {
+                console.error("AI Status Fetch Error during Update:", aiErr);
+            }
         }
-        if (watched) {
-             updates.push(sheets.spreadsheets.values.update({
-                spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${watchedColLetter}${rowIndex}`,
-                valueInputOption: 'USER_ENTERED', requestBody: { values: [[watched]] }
-            }));
-             if(mediaType.includes('movie')) {
-                 updates.push(sheets.spreadsheets.values.update({
-                    spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${watchedTillColLetter}${rowIndex}`,
-                    valueInputOption: 'USER_ENTERED', requestBody: { values: [[watched === 'True' ? 'Watched' : 'Not Watched']] }
+
+        const transformedData = transformResponse(mediaData, watchedTill || '', mediaType, watched || 'False');
+        const updates = [];
+
+        for (let i = 0; i < sheetConfig.columns.length; i++) {
+            const colName = sheetConfig.columns[i];
+            const colLetter = String.fromCharCode('A'.charCodeAt(0) + i);
+            let valueToUpdate = undefined;
+
+            if (colName === (mediaType.includes('movie') ? 'movies_name' : `${mediaType}_name`) && name) {
+                valueToUpdate = name;
+            } else if (colName === 'watched' && watched !== undefined) {
+                valueToUpdate = watched;
+            } else if (colName === 'watched_till') {
+                if (mediaType.includes('movie') && watched !== undefined) {
+                    valueToUpdate = watched === 'True' ? 'Watched' : 'Not Watched';
+                } else if (!mediaType.includes('movie') && watchedTill !== undefined) {
+                    valueToUpdate = watchedTill;
+                }
+            } else if (colName === 'update') {
+                valueToUpdate = new Date().toISOString();
+            } else if (transformedData[colName] !== undefined && transformedData[colName] !== '') {
+                valueToUpdate = transformedData[colName];
+            }
+
+            if (valueToUpdate !== undefined) {
+                updates.push(sheets.spreadsheets.values.update({
+                    spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${colLetter}${rowIndex}`,
+                    valueInputOption: 'USER_ENTERED', requestBody: { values: [[valueToUpdate]] }
                 }));
-             }
-        }
-        if (watchedTill && (mediaType === 'series' || mediaType === 'anime')) {
-            updates.push(sheets.spreadsheets.values.update({
-                spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${watchedTillColLetter}${rowIndex}`,
-                valueInputOption: 'USER_ENTERED', requestBody: { values: [[watchedTill]] }
-            }));
+            }
         }
 
         await Promise.all(updates);
