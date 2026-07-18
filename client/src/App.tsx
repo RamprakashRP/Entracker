@@ -379,38 +379,40 @@ export default function App() {
         <div className="app-container">
             <DotGrid dotSize={2} gap={10} baseColor="#8B5CF6" activeColor="#06B6D4" proximity={80} shockRadius={100} shockStrength={20} resistance={250} returnDuration={0.5} />
             <div className="content-wrapper">
-                <div 
-                    className="absolute top-6 left-6 z-50 cursor-pointer transition-transform hover:scale-105" 
-                    onDoubleClick={() => !isAdmin && setIsLoginModalOpen(true)}
-                    title={!isAdmin ? "Double click to login" : "Admin active"}
-                >
-                    <img 
-                        src={theme === 'dark' ? '/logo-horizontal-dark.png' : '/logo-horizontal-light.png'} 
-                        alt="Entracker Logo" 
-                        style={{ height: '44px', width: 'auto' }}
-                    />
-                </div>
-                <nav className="top-nav" style={{ justifyContent: 'space-between', padding: '1rem 3rem' }}>
-                    <div className="nav-links" style={{ gap: '2rem' }}>
-                        <button className={`nav-link ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
-                        <button className={`nav-link ${activeTab === 'library' ? 'active' : ''}`} onClick={() => setActiveTab('library')}>Library</button>
-                        {isAdmin && <button className={`nav-link ${activeTab === 'add' ? 'active' : ''}`} onClick={() => setActiveTab('add')}>Add Media</button>}
+                <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', marginTop: '1rem', padding: '0 1rem' }}>
+                    <div 
+                        className="cursor-pointer transition-transform hover:scale-105" 
+                        onDoubleClick={() => !isAdmin && setIsLoginModalOpen(true)}
+                        title={!isAdmin ? "Double click to login" : "Admin active"}
+                    >
+                        <img 
+                            src={theme === 'dark' ? '/logo-horizontal-dark.png' : '/logo-horizontal-light.png'} 
+                            alt="Entracker Logo" 
+                            style={{ height: '36px', width: 'auto' }}
+                        />
                     </div>
-                    <div className="nav-links" style={{ gap: '1rem' }}>
-                        <button className="nav-link" onClick={toggleTheme} title="Toggle Theme" style={{ display: 'flex', alignItems: 'center' }}>
-                            {theme === 'dark' ? (
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                            ) : (
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                            )}
-                        </button>
-                        {isAdmin && (
-                            <button className="nav-link !text-red-400 font-semibold" onClick={handleLogout} title="Logout">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <nav className="top-nav" style={{ margin: 0, padding: '0.75rem 2rem', gap: '2rem' }}>
+                        <div className="nav-links" style={{ gap: '2rem' }}>
+                            <button className={`nav-link ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
+                            <button className={`nav-link ${activeTab === 'library' ? 'active' : ''}`} onClick={() => setActiveTab('library')}>Library</button>
+                            {isAdmin && <button className={`nav-link ${activeTab === 'add' ? 'active' : ''}`} onClick={() => setActiveTab('add')}>Add Media</button>}
+                        </div>
+                        <div className="nav-links" style={{ gap: '1rem' }}>
+                            <button className="nav-link" onClick={toggleTheme} title="Toggle Theme" style={{ display: 'flex', alignItems: 'center' }}>
+                                {theme === 'dark' ? (
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                                ) : (
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                                )}
                             </button>
-                        )}
-                    </div>
-                </nav>
+                            {isAdmin && (
+                                <button className="nav-link !text-red-400 font-semibold" onClick={handleLogout} title="Logout">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                                </button>
+                            )}
+                        </div>
+                    </nav>
+                </header>
 
                 <main className="main-content">
                     <AnimatePresence mode="wait">
