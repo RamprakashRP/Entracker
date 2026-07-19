@@ -128,6 +128,15 @@ app.post('/api/login', (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Invalid password' });
 });
 
+app.get('/api/debug-env', (req: Request, res: Response) => {
+    res.json({
+        hasAdminPassword: !!process.env.ADMIN_PASSWORD,
+        adminPasswordLength: process.env.ADMIN_PASSWORD ? process.env.ADMIN_PASSWORD.length : 0,
+        envKeys: Object.keys(process.env).filter(k => k.includes('ADMIN') || k.includes('JWT') || k.includes('VITE') || k.includes('SPREAD')),
+        nodeEnv: process.env.NODE_ENV
+    });
+});
+
 app.post('/api/add-media', authenticateToken, async (req: Request, res: Response) => {
     const { mediaType, tmdbId, watched, watchedTill } = req.body;
     if (!mediaType || !tmdbId || watched === undefined) {
