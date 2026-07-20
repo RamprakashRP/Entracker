@@ -93,7 +93,7 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName,
                                 <div className="details-right" style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
                                     <h4 style={{ marginBottom: '1rem', color: 'var(--accent-primary)' }}>Your Details</h4>
                                     {mediaItem && Object.keys(mediaItem).map(key => {
-                                        if (['media_type_key', 'movies_name', 'series_name', 'anime_name'].includes(key)) return null;
+                                        if (['media_type_key', 'movies_name', 'series_name', 'anime_name', 'row_index', 'update'].includes(key)) return null;
                                         if (!mediaItem[key]) return null;
                                         const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                                         return (
