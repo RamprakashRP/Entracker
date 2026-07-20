@@ -480,7 +480,7 @@ const MediaListView: React.FC<MediaListViewProps> = ({ isAdmin = false, onDetail
             </motion.div>
             
             {selectedFranchise && <FranchiseModal franchiseName={selectedFranchise.name} mediaType={selectedFranchise.type} onClose={() => setSelectedFranchise(null)} onMovieSelect={handleMovieSelectFromModal} />}
-            {detailsItem && <MediaDetailsModal mediaName={detailsItem.series_name || detailsItem.movies_name || detailsItem.anime_name} mediaType={detailsItem.media_type_key} onClose={handleDetailsClose} />}
+            {detailsItem && <MediaDetailsModal mediaName={detailsItem.series_name || detailsItem.movies_name || detailsItem.anime_name} mediaType={detailsItem.media_type_key} mediaItem={detailsItem} onClose={handleDetailsClose} />}
         </>
     );
 };

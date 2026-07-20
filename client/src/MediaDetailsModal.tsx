@@ -17,10 +17,11 @@ interface Details {
 interface MediaDetailsModalProps {
     mediaName: string;
     mediaType: string;
+    mediaItem?: any;
     onClose: () => void;
 }
 
-export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName, mediaType, onClose }) => {
+export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName, mediaType, mediaItem, onClose }) => {
     const [details, setDetails] = useState<Details | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -58,11 +59,38 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName,
                     {details && (
                         <>
                             <div className="details-hero" style={{ backgroundImage: `url(${details.poster_path?.startsWith('/') ? `${API_BASE}${details.poster_path}` : details.poster_path})` }}>
-                                <div className="details-hero-overlay">
-                                    <div className="details-hero-content">
+                                <div className="details-hero-overlay"></div>
+                                <div className="details-hero-content">
+                                    <div className="details-poster-container">
                                         {details.poster_path && <img src={details.poster_path.startsWith('/') ? `${API_BASE}${details.poster_path}` : details.poster_path} alt={details.name} className="details-poster" />}
-                                        <div className="details-header-text">
-                                            <h3>{details.name}</h3>
+                                    </div>
+                                    <div className="details-hero-info">
+                                        <h2>{details.name}</h2>
+                                        
+                                        {mediaItem && (
+                                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                                                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
+                                                    <span style={{ fontSize: '0.75rem', opacity: 0.7, display: 'block' }}>Status</span>
+                                                    <strong style={{ color: mediaItem.watched === 'True' || mediaItem.watched === 'Watched' ? 'var(--status-success)' : 'white' }}>
+                                                        {mediaItem.watched === 'True' || mediaItem.watched === 'Watched' ? 'Watched' : 'Watchlist'}
+                                                    </strong>
+                                                </div>
+                                                {(mediaItem.watched_till && mediaItem.watched_till !== 'N/A' && mediaItem.watched_till !== 'Not Watched') && (
+                                                    <div style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
+                                                        <span style={{ fontSize: '0.75rem', opacity: 0.7, display: 'block' }}>Progress</span>
+                                                        <strong>{mediaItem.watched_till}</strong>
+                                                    </div>
+                                                )}
+                                                {mediaItem.update && (
+                                                    <div style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
+                                                        <span style={{ fontSize: '0.75rem', opacity: 0.7, display: 'block' }}>Last Updated</span>
+                                                        <strong>{new Date(mediaItem.update).toLocaleDateString()}</strong>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        
+                                        <div className="details-meta" style={{ marginTop: '1rem' }}>
                                             <div className="details-rating">
                                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                                                 {details.vote_average.toFixed(1)} / 10

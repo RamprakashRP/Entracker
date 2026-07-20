@@ -155,9 +155,40 @@ app.post('/api/add-media', authenticateToken, async (req: Request, res: Response
         const officialName = tmdbDetails.title || tmdbDetails.name;
         
         const existingMoviesResponse = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: sheetConfig.range });
-        const existingMovieNames = new Set(existingMoviesResponse.data.values?.slice(1).map(row => row[0].toLowerCase()) || []);
-        if (existingMovieNames.has(officialName.toLowerCase())) {
-            return res.status(409).json({ error: `"${officialName}" is already in your list.` });
+        const rows = existingMoviesResponse.data.values || [];
+        const existingIndex = rows.findIndex((row, i) => i > 0 && row[0]?.toLowerCase() === officialName.toLowerCase());
+        const existingMovieNames = new Set(rows.slice(1).map(row => row[0]?.toLowerCase() || ''));
+        
+        if (existingIndex > 0) {
+            const rowIndex = existingIndex + 1;
+            const updates = [];
+            for (let i = 0; i < sheetConfig.columns.length; i++) {
+                const colName = sheetConfig.columns[i];
+                const colLetter = String.fromCharCode('A'.charCodeAt(0) + i);
+                let valueToUpdate = undefined;
+
+                if (colName === 'watched' && watched !== undefined) {
+                    valueToUpdate = watched;
+                } else if (colName === 'watched_till') {
+                    if (mediaType.includes('movie') && watched !== undefined) {
+                        valueToUpdate = watched === 'True' ? 'Watched' : 'Not Watched';
+                    } else if (!mediaType.includes('movie') && watchedTill !== undefined && watchedTill.trim() !== '') {
+                        valueToUpdate = watchedTill;
+                    }
+                } else if (colName === 'update') {
+                    valueToUpdate = new Date().toISOString();
+                }
+
+                if (valueToUpdate !== undefined) {
+                    updates.push(sheets.spreadsheets.values.update({
+                        spreadsheetId: SPREADSHEET_ID, range: `${sheetConfig.sheetName}!${colLetter}${rowIndex}`,
+                        valueInputOption: 'USER_ENTERED', requestBody: { values: [[valueToUpdate]] }
+                    }));
+                }
+            }
+            await Promise.all(updates);
+            delete mediaCache[mediaType];
+            return res.status(200).json({ message: `"${officialName}" was already in your list and has been updated!` });
         }
         
         const prompt = getPromptForMediaType(mediaType, officialName);

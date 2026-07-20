@@ -114,18 +114,24 @@ export const FranchiseModal: React.FC<FranchiseModalProps> = ({ franchiseName, m
                         <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: 0 }}>
                             {movies.map((movie) => (
                             <li key={movie.row_index}>
-                                <span
+                                <div
                                 style={{
-                                    display: 'block', padding: '0.75rem 1rem', background: 'var(--bg-glass-light)', 
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    padding: '0.75rem 1rem', background: 'var(--bg-glass-light)', 
                                     borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s',
-                                    borderLeft: `4px solid ${movie.watched?.toLowerCase() === 'true' ? 'var(--status-success)' : 'var(--status-warning)'}`
+                                    borderLeft: `4px solid ${movie.watched?.toLowerCase() === 'true' || movie.watched?.toLowerCase() === 'watched' ? 'var(--status-success)' : 'var(--status-warning)'}`
                                 }}
                                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-glass-hover)'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-glass-light)'}
                                 onClick={(e) => { e.currentTarget.style.transform = 'scale(0.98)'; setTimeout(() => onMovieSelect({ ...movie, media_type_key: mediaType }), 100); }}
                                 >
-                                {movie.movies_name}
-                                </span>
+                                    <span style={{ fontWeight: '500' }}>{movie.movies_name}</span>
+                                    {(movie.watched_till && movie.watched_till !== 'N/A' && movie.watched_till !== 'Not Watched') && (
+                                        <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', opacity: 0.8 }}>
+                                            {movie.watched_till}
+                                        </span>
+                                    )}
+                                </div>
                             </li>
                             ))}
                         </ul>
