@@ -98,26 +98,28 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName,
                                 </div>
                                 
                                 {mediaItem && (
-                                    <div style={{ flex: '1 1 250px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                        <h4 style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>Your Tracking Info</h4>
-                                        <div style={{ background: 'var(--bg-glass-light)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
-                                            <span style={{ fontSize: '0.85rem', opacity: 0.7, display: 'block', marginBottom: '0.25rem' }}>Status</span>
-                                            <strong style={{ fontSize: '1.1rem', color: mediaItem.watched === 'True' || mediaItem.watched === 'Watched' ? 'var(--status-success)' : 'white' }}>
-                                                {mediaItem.watched === 'True' || mediaItem.watched === 'Watched' ? 'Watched' : 'Watchlist'}
-                                            </strong>
+                                    <div style={{ flex: '1 1 250px' }}>
+                                        <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>Your Tracking Details</h4>
+                                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                            <div style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', flex: '1 1 calc(50% - 0.5rem)', minWidth: '120px' }}>
+                                                <span style={{ fontSize: '0.75rem', opacity: 0.7, display: 'block' }}>Status</span>
+                                                <strong style={{ color: mediaItem.watched === 'True' || mediaItem.watched === 'Watched' ? 'var(--status-success)' : 'white' }}>
+                                                    {mediaItem.watched === 'True' || mediaItem.watched === 'Watched' ? 'Watched' : 'Watchlist'}
+                                                </strong>
+                                            </div>
+                                            {(mediaItem.watched_till && mediaItem.watched_till !== 'N/A' && mediaItem.watched_till !== 'Not Watched') && (
+                                                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', flex: '1 1 calc(50% - 0.5rem)', minWidth: '120px' }}>
+                                                    <span style={{ fontSize: '0.75rem', opacity: 0.7, display: 'block' }}>Progress</span>
+                                                    <strong>{mediaItem.watched_till}</strong>
+                                                </div>
+                                            )}
+                                            {mediaItem.update && (
+                                                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', flex: '1 1 100%' }}>
+                                                    <span style={{ fontSize: '0.75rem', opacity: 0.7, display: 'block' }}>Last Updated</span>
+                                                    <strong>{new Date(mediaItem.update).toLocaleDateString()}</strong>
+                                                </div>
+                                            )}
                                         </div>
-                                        {(mediaItem.watched_till && mediaItem.watched_till !== 'N/A' && mediaItem.watched_till !== 'Not Watched') && (
-                                            <div style={{ background: 'var(--bg-glass-light)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
-                                                <span style={{ fontSize: '0.85rem', opacity: 0.7, display: 'block', marginBottom: '0.25rem' }}>Progress</span>
-                                                <strong style={{ fontSize: '1.1rem' }}>{mediaItem.watched_till}</strong>
-                                            </div>
-                                        )}
-                                        {mediaItem.update && (
-                                            <div style={{ background: 'var(--bg-glass-light)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
-                                                <span style={{ fontSize: '0.85rem', opacity: 0.7, display: 'block', marginBottom: '0.25rem' }}>Last Updated</span>
-                                                <strong style={{ fontSize: '1.1rem' }}>{new Date(mediaItem.update).toLocaleDateString()}</strong>
-                                            </div>
-                                        )}
                                     </div>
                                 )}
                                 </div>
