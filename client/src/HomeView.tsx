@@ -18,7 +18,7 @@ export function HomeView() {
     const [allMedia, setAllMedia] = useState<MediaItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [detailsItem, setDetailsItem] = useState<{ name: string; type: ListMediaType; item?: any } | null>(null);
+    const [detailsItem, setDetailsItem] = useState<{ name: string; type: ListMediaType; fullItem?: any } | null>(null);
 
     useEffect(() => {
         const fetchAll = async () => {
@@ -72,7 +72,7 @@ export function HomeView() {
                                     selectedListType={item.media_type_key}
                                     onClick={() => {
                                         const nameKey = item.media_type_key.includes('movie') ? 'movies_name' : `${item.media_type_key}_name`;
-                                        setDetailsItem({ name: item[nameKey], type: item.media_type_key, item: item });
+                                        setDetailsItem({ name: item[nameKey], type: item.media_type_key, fullItem: item });
                                     }} 
                                 />
                             </div>
@@ -113,7 +113,7 @@ export function HomeView() {
             )}
 
             {detailsItem && (
-                <MediaDetailsModal mediaName={detailsItem.name} mediaType={detailsItem.type} mediaItem={detailsItem.item} onClose={() => setDetailsItem(null)} />
+                <MediaDetailsModal mediaName={detailsItem.name} mediaType={detailsItem.type} mediaItem={detailsItem.fullItem} onClose={() => setDetailsItem(null)} />
             )}
         </div>
     );

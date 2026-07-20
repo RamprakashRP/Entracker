@@ -59,16 +59,11 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName,
                     {details && (
                         <>
                             <div className="details-hero" style={{ backgroundImage: `url(${details.poster_path?.startsWith('/') ? `${API_BASE}${details.poster_path}` : details.poster_path})` }}>
-                                <div className="details-hero-overlay"></div>
-                                <div className="details-hero-content">
-                                    <div className="details-poster-container">
+                                <div className="details-hero-overlay">
+                                    <div className="details-hero-content">
                                         {details.poster_path && <img src={details.poster_path.startsWith('/') ? `${API_BASE}${details.poster_path}` : details.poster_path} alt={details.name} className="details-poster" />}
-                                    </div>
-                                    <div className="details-hero-info">
-                                        <h2>{details.name}</h2>
-                                        
-
-                                        <div className="details-meta" style={{ marginTop: '1rem' }}>
+                                        <div className="details-header-text">
+                                            <h3>{details.name}</h3>
                                             <div className="details-rating">
                                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                                                 {details.vote_average.toFixed(1)} / 10
@@ -80,14 +75,13 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName,
                                     </div>
                                 </div>
                             </div>
-                            <div className="details-body" style={{ display: 'flex', flexWrap: 'nowrap', gap: '2rem' }}>
-                                <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>Overview</h4>
+                            <div className="details-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                                <div className="details-left">
                                     <p className="details-overview">{details.overview}</p>
                                     
                                     {details.providers.length > 0 && (
                                         <div className="details-providers">
-                                            <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>Available on:</h4>
+                                            <h4>Available on:</h4>
                                             <div className="provider-logos">
                                                 {details.providers.map(p => (
                                                     <img key={p.provider_name} src={`${API_BASE}/api/image-proxy?url=https://image.tmdb.org/t/p/original${p.logo_path}`} alt={p.provider_name} title={p.provider_name} className="provider-logo" />
@@ -96,36 +90,29 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({ mediaName,
                                         </div>
                                     )}
                                 </div>
-                                
-                                {mediaItem && (
-                                    <div style={{ flex: '0 0 250px', width: '250px' }}>
-                                        <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>Your Tracking Details</h4>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                            <div style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
-                                                <span style={{ fontSize: '0.75rem', opacity: 0.7, display: 'block' }}>Status</span>
-                                                <strong style={{ color: mediaItem.watched === 'True' || mediaItem.watched === 'Watched' ? 'var(--status-success)' : 'white' }}>
-                                                    {mediaItem.watched === 'True' || mediaItem.watched === 'Watched' ? 'Watched' : 'Watchlist'}
-                                                </strong>
+                                <div className="details-right" style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
+                                    <h4 style={{ marginBottom: '1rem', color: 'var(--accent-primary)' }}>Your Details</h4>
+                                    {mediaItem && Object.keys(mediaItem).map(key => {
+                                        if (['media_type_key', 'movies_name', 'series_name', 'anime_name'].includes(key)) return null;
+                                        if (!mediaItem[key]) return null;
+                                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                        return (
+                                            <div key={key} style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
+                                                <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                                                <span style={{ fontWeight: '600' }}>{mediaItem[key]}</span>
                                             </div>
-                                            {(mediaItem.watched_till && mediaItem.watched_till !== 'N/A' && mediaItem.watched_till !== 'Not Watched') && (
-                                                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
-                                                    <span style={{ fontSize: '0.75rem', opacity: 0.7, display: 'block' }}>Progress</span>
-                                                    <strong>{mediaItem.watched_till}</strong>
-                                                </div>
-                                            )}
-                                            {mediaItem.update && (
-                                                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
-                                                    <span style={{ fontSize: '0.75rem', opacity: 0.7, display: 'block' }}>Last Updated</span>
-                                                    <strong>{new Date(mediaItem.update).toLocaleDateString()}</strong>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+                                        );
+                                    })}
+                                    {!mediaItem && <div style={{ color: 'var(--text-muted)' }}>No personal details available.</div>}
                                 </div>
-                                <div className="modal-actions" style={{ width: '100%', marginTop: '1rem' }}>
-                                    <button className="premium-button secondary" onClick={onClose}>Close</button>
-                                </div>
+                                <button 
+                                    className="modal-close-button" 
+                                    onClick={onClose}
+                                    style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                    ✕
+                                </button>
+                            </div>
                         </>
                     )}
                 </motion.div>

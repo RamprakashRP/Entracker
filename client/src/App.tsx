@@ -87,7 +87,7 @@ export default function App() {
         confirmText: string; onConfirm: () => void;
     }>({ isOpen: false, title: '', message: '', confirmText: 'Yes', onConfirm: () => {} });
     const [disambiguation, setDisambiguation] = useState<{ isOpen: boolean; results: TMDBResult[]; isWatched: boolean }>({ isOpen: false, results: [], isWatched: false });
-    const [detailsItem, setDetailsItem] = useState<{ name: string; type: string; item?: any } | null>(null);
+    const [detailsItem, setDetailsItem] = useState<{ name: string; type: string; fullItem?: any } | null>(null);
 
     const fetchAllMediaData = useCallback(async () => {
         try {
@@ -341,8 +341,8 @@ export default function App() {
         }
     };
     
-    const viewDetails = (item: any) => {
-        setDetailsItem({ name: item.name || item.movies_name || item.series_name || item.anime_name, type: form.mediaType, item: item });
+    const viewDetails = (item: TMDBResult) => {
+        setDetailsItem({ name: item.name, type: form.mediaType, fullItem: item });
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement> | MediaType) => {
@@ -506,7 +506,7 @@ export default function App() {
                 <DisambiguationModal results={disambiguation.results} onSelect={(result) => addMediaById(result.id, disambiguation.isWatched)} onViewDetails={viewDetails} onClose={() => setDisambiguation({ ...disambiguation, isOpen: false })} />
             )}
             {detailsItem && (
-                <MediaDetailsModal mediaName={detailsItem.name} mediaType={detailsItem.type} mediaItem={detailsItem.item} onClose={() => setDetailsItem(null)} />
+                <MediaDetailsModal mediaName={detailsItem.name} mediaType={detailsItem.type} mediaItem={detailsItem.fullItem} onClose={() => setDetailsItem(null)} />
             )}
             <ConfirmationModal 
                 isOpen={modalState.isOpen} title={modalState.title} message={modalState.message}
